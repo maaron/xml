@@ -18,7 +18,7 @@ int _tmain(int argc, _TCHAR* argv[])
 
   auto parser = _1 >> _2 >> _3 >> _4;
 
-  std::wstring data(L"1234");
+  std::string data("1234");
 
   auto ast = parse::tree::make_ast(parser, data);
   bool valid = parser.parse(data, ast);
@@ -28,9 +28,11 @@ int _tmain(int argc, _TCHAR* argv[])
   auto& c2 = ast[parse::_i2];
   auto& c3 = ast[parse::_i3];
   //auto& c4 = ast[parse::_i4];
-  //auto& c5 = ast.get(parse::_i5);
-  //auto& c6 = ast.get(parse::_i6);
-  //auto& c7 = ast.get(parse::_i7);
+
+  std::cout << "c0=" << c0.to_string() << std::endl;
+  std::cout << "c1=" << c1.to_string() << std::endl;
+  std::cout << "c2=" << c2.to_string() << std::endl;
+  std::cout << "c3=" << c3.to_string() << std::endl;
 
   auto size = ast.size;
 

@@ -2,6 +2,7 @@
 
 #include <vector>
 #include <functional>
+#include <string>
 
 namespace parse
 {
@@ -19,27 +20,7 @@ namespace parse
   index<7> _i7;
   index<8> _i8;
   index<9> _i9;
-
-  // This meta-class is used to create list structures similar to runtime 
-  // linked-lists.  This list structure consists of an item<t1, t2> type, where 
-  // t1 may be an item<t11, t12> itself.  The inner-most t1 (i.e., t111...1) is
-  // a list of two elements, and each t2 parameter appends to the end of the 
-  // list.  Thus, list_t<t1, t2> repesents an element 't2' that is appended to the
-  // end of the list 't1'.  The first parameter, t1, is only considered a list if 
-  // it is an instance of the list_t template.  Otherwise, the result is just a 
-  // pair (2 element list).
-  //
-  // Examples:
-  //
-  //  // Create a 2-element list (int, char*).
-  //  static_list<mylist_t>::item<int, char*> mypair;
-  //
-  //  // Create a 3-element list (int, char*, char)
-  //  static_list<mylist_t>::item<decltype(mypair), char> mylist;
-  //
-  //  // Modify the second element of mylist
-  //  mylist[_1] = "hello";
-  
+ 
   // Creates a two element list
   template <template <typename,typename> class derived_t, typename first_t, typename second_t>
   struct list
@@ -100,6 +81,11 @@ namespace parse
 
       ast_base() : matched(false)
       {
+      }
+
+      std::basic_string<typename iterator_t::value_type> to_string()
+      {
+        return std::basic_string<typename iterator_t::value_type>(start, end);
       }
     };
 
