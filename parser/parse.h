@@ -152,9 +152,13 @@ namespace parse
   template <typename parser_t>
   class zero_or_more : public parser< zero_or_more<parser_t> >
   {
-    parser_t elem;
+    parser_t p;
 
   public:
+    zero_or_more(const parser_t& parser) : p(parser)
+    {
+    }
+
     template <typename iterator_t>
     struct ast : public tree::ast_base<iterator_t>
     {
@@ -165,10 +169,10 @@ namespace parse
     template <typename iterator_t, typename ast_t>
     bool parse_internal(iterator_t& start, iterator_t& end, ast_t& ast)
     {
-      typename parser_t::ast elem_tree;
-      while (!s.eof() && elem.parse_from(s, elem_tree))
+      typename parser_t::ast p_tree;
+      while (!s.eof() && p.parse_from(s, p_tree))
       {
-        tree.children.push_back(elem_tree);
+        tree.children.push_back(p_tree);
       }
       return true;
     }
@@ -179,10 +183,14 @@ namespace parse
   template <typename first_t, typename second_t>
   class alternate : public parser< alternate<first_t, second_t> >
   {
-    first_t first;
-    second_t second;
+    first_t f;
+    second_t s;
 
   public:
+    alternate(const first_t& first, const second_t& second) : f(first), s(second)
+    {
+    }
+
     template <typename iterator_t>
     struct ast
     {
@@ -194,8 +202,9 @@ namespace parse
     template <typename iterator_t>
     bool parse_internal(iterator_t& start, iterator_t& end, typename ast<iterator_t>::type& tree)
     {
-      return (tree.first_matched = first.parse_from(s, tree.first)) || 
-        second.parse_from(s, tree.second);
+      return 
+        f.parse_from(start, end, tree.first) || 
+        s.parse_from(start, end, tree.second);
     }
   };
 
@@ -208,6 +217,10 @@ namespace parse
     second_t second;
 
   public:
+    sequence(const first_t& f, const second_t& s) : first(f), second(s)
+    {
+    }
+
     template <typename iterator_t>
     struct ast
     {
@@ -263,6 +276,23 @@ namespace parse
     }
   };
 
+  template <typename token_t>
+  class character : public single< character<token_t>, token_t >
+  {
+  private:
+    token_t t;
+
+  public:
+    character(token_t token) : t(token)
+    {
+    }
+
+    bool match(token_t token)
+    {
+      return token == t;
+    }
+  };
+
   // A zero-length parser that matches only at the end of the stream.
   class end : public parser<end>
   {
@@ -306,21 +336,21 @@ namespace parse
     template <typename first_t, typename second_t>
     alternate<first_t, second_t> operator| (const first_t& first, const second_t& second)
     {
-      return alternate<first_t, second_t>();
+      return alternate<first_t, second_t>(first, second);
     }
 
     // Generates a sequence<first_t, second_t> parser
     template <typename first_t, typename second_t>
     sequence<first_t, second_t> operator>> (const first_t& first, const second_t& second)
     {
-      return sequence<first_t, second_t>();
+      return sequence<first_t, second_t>(first, second);
     }
 
     // Generates a zero_or_more<parser_t> parser
     template <typename parser_t>
-    zero_or_more<parser_t> operator* (parser_t& e)
+    zero_or_more<parser_t> operator* (parser_t& parser)
     {
-      return zero_or_more<parser_t>();
+      return zero_or_more<parser_t>(parser);
     }
 
   }

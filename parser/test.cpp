@@ -7,6 +7,15 @@
 
 #include "parse.h"
 
+template <typename parser_t, typename stream_t>
+typename parser_t::ast<typename stream_t::iterator>::type
+parse_expression(parser_t& parser, stream_t& data)
+{
+  auto ast = parse::tree::make_ast(parser, data);
+  if (!parser.parse(data, ast)) throw std::exception("parse error");
+  return ast;
+}
+
 int _tmain(int argc, _TCHAR* argv[])
 {  
   using namespace parse::operators;
@@ -34,7 +43,24 @@ int _tmain(int argc, _TCHAR* argv[])
   std::cout << "c2=" << c2.to_string() << std::endl;
   std::cout << "c3=" << c3.to_string() << std::endl;
 
-  auto size = ast.size;
+  using namespace parse;
+
+  auto ast2 = parse_expression(_1 >> _2 >> _3 >> _4, data);
+
+  std::cout << "c0=" << ast2[_i0].to_string() << std::endl;
+  std::cout << "c1=" << ast2[_i1].to_string() << std::endl;
+  std::cout << "c2=" << ast2[_i2].to_string() << std::endl;
+  std::cout << "c3=" << ast2[_i3].to_string() << std::endl;
+
+  auto a = character<char>('a');
+  auto b = character<char>('b');
+  auto c = character<char>('c');
+
+  
+  std::string data2("d");
+  auto abc = a | b | c;
+  auto abc_ast = tree::make_ast(abc, data2);
+  valid = abc.parse(data2, abc_ast);
 
   return 0;
 }
