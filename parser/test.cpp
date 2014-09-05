@@ -56,10 +56,16 @@ int _tmain(int argc, _TCHAR* argv[])
   auto b = character<char>('b');
   auto c = character<char>('c');
 
-  
   std::string data2("d");
   auto abc = a | b | c;
   auto abc_ast = tree::make_ast(abc, data2);
+  valid = abc.parse(data2, abc_ast);
+
+  struct dec : std::identity<decltype(_1 >> _2 >> _3)>::type
+  {
+  };
+
+  dec_ast = tree::make_ast(dec(), data2);
   valid = abc.parse(data2, abc_ast);
 
   return 0;
