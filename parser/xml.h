@@ -2,6 +2,7 @@
 
 #include "parse.h"
 #include "unicode.h"
+#include "stream.h"
 #include <codecvt>
 
 namespace xml
@@ -68,100 +69,10 @@ namespace xml
 	class document;
 	class element;
 
-    // buffer_iterator that supports std::istream
-    class streambuf_iterator : public std::iterator<std::input_iterator_tag, char32_t>
-    {
-    private:
-        static const size_t read_size = 8192;
-        std::streambuf* sbuf;
-        size_t index;
-        std::vector<unsigned char>* buf;
-
-    public:
-        streambuf_iterator()
-            : sbuf(nullptr), buf(nullptr), 
-            index(std::streambuf::traits_type::eof())
-        {
-        }
-
-        streambuf_iterator(std::streambuf* streambuf, std::vector<unsigned char>* buffer)
-            : sbuf(streambuf), buf(buffer), index(0)
-        {
-            char32_t uc;
-
-        }
-
-    protected:
-        char32_t operator*()
-        {
-            return buf->[index];
-        };
-
-        streambuf_iterator& operator++()
-        {
-            advance();
-            return *this;
-        }
-
-        streambuf_iterator& operator++(int)
-        {
-            streambuf_iterator tmp = *this;
-            ++*this;
-            return tmp;
-        }
-
-        bool operator==(const streambuf_iterator& rhs)
-        {
-            return 
-                (rhs.sbuf == sbuf == nullptr) ||
-                (rhs.sbuf == nullptr && sbuf->sgetc() == std::streambuf::traits_type::eof()) ||
-                (sbuf == nullptr && rhs.sbuf->sgetc() == std::streambuf::traits_type::eof()) ||
-                index == rhs.index;
-        }
-
-        bool operator!=(const streambuf_iterator& rhs)
-        {
-            return !(*this == rhs);
-        }
-
-    private:
-        void advance()
-        {
-            index++;
-
-            if (index == buf->size())
-            {
-                size_t s = buf.size();
-                buf.resize(s + read_size);
-                if (sbuf->sgetn(&buf[s], read_size) == 0);
-            }
-        }
-    };
-
-    // Buffer that supports random access, and reads from a std::istream as 
-    // necessary.
-    class istream_buffer
-    {
-    private:
-        std::streambuf* sbuf;
-        std::vector<unsigned char> buffer;
-
-    public:
-        typedef streambuf_iterator<unsigned char> iterator;
-
-        istream_buffer(std::istream& stream) : sbuf(stream.rdbuf())
-        {
-        };
-
-        iterator begin() { return iterator(sbuf, &buffer); }
-
-        iterator end() { return iterator(); }
-    };
-
-	class anchor
+    class anchor
 	{
 	protected:
-		istream_buffer::iterator start;
+        parser::streams::unicode_iterator& iter;
 
 	public:
         anchor(istream_buffer::iterator start) : start(start)
