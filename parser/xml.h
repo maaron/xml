@@ -69,13 +69,19 @@ namespace xml
 	class document;
 	class element;
 
+    std::string get_string(
+        parse::tree::ast_base<parser::streams::unicode_iterator>& ast)
+    {
+        return ast.start.to_string(ast.end);
+    }
+
     class anchor
 	{
 	protected:
-        parser::streams::unicode_iterator& iter;
+        parser::streams::unicode_iterator iter;
 
 	public:
-        anchor(istream_buffer::iterator start) : start(start)
+        anchor(parser::streams::unicode_iterator& start) : iter(start)
 		{
 		}
 	};
@@ -83,34 +89,35 @@ namespace xml
 	class element : public anchor
 	{
 	private:
-		parse::ast_type<parser::element_open, istream_buffer::iterator>::type ast;
+		parse::ast_type<parser::element_open, parser::streams::unicode_iterator>::type ast;
 
 	public:
-		element(istream_buffer::iterator start) : anchor(start)
+		element(
+            parser::streams::unicode_iterator& start) : anchor(start)
 		{
 			parser::element_open parser;
-			if (!parser.parse_from(start, istream_buffer::iterator(), ast)) throw std::exception("parse error");
+			if (!parser.parse_from(start, parser::streams::unicode_iterator(), ast)) throw std::exception("parse error");
 		}
 
 		std::string name()
 		{
-			return ast[util::_i1].to_string();
+			return get_string(ast[util::_i1]);
 		}
 
 		std::string local_name()
 		{
-			return ast[util::_i1].to_string();
+			return get_string(ast[util::_i1]);
 		}
 	};
 
 	class document
 	{
 	private:
-        istream_buffer data;
-        parse::ast_type<parser::prolog, istream_buffer::iterator>::type ast;
+        parser::streams::parse_buffer data;
+        parse::ast_type<parser::prolog, parser::streams::unicode_iterator>::type ast;
 
 	public:
-		document(std::istream& stream) : data(stream)
+		document(std::istream& stream) : data(stream.rdbuf())
 		{
 		}
 

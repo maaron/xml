@@ -124,7 +124,7 @@ namespace parse
         {
         }
 
-        zero_or_more(const parser_t& parser) : parser(parser)
+        zero_or_more(const parser_t& parser) : elem(parser)
         {
         }
 
@@ -139,9 +139,9 @@ namespace parse
         bool parse_internal(iterator_t& start, iterator_t& end, ast_t& ast)
         {
             typename ast_type<parser_t, iterator_t>::type elem_tree;
-            while (!s.eof() && elem.parse_from(start, end, elem_tree))
+            while (start != end && elem.parse_from(start, end, elem_tree))
             {
-                tree.children.push_back(elem_tree);
+                ast.children.push_back(elem_tree);
 
                 // This is neccessary to prevent endless looping when a 
                 // parser_t can have a valid, zero-length match.
@@ -182,14 +182,14 @@ namespace parse
             for (i = 0; i < min; i++)
             {
                 typename ast_type<parser_t, iterator_t>::type child;
-                if (!parser.parse(start, end, child)) return false;
+                if (!parser.parse_from(start, end, child)) return false;
                 tree.children.push_back(child);
             }
 
             for (; i < max; i++)
             {
                 typename ast_type<parser_t, iterator_t>::type child;
-                if (s.eof() || !parser.parse(start, end, child)) break;
+                if (start == end || !parser.parse_from(start, end, child)) break;
                 tree.children.push_back(child);
             }
             return true;
@@ -223,7 +223,7 @@ namespace parse
         template <typename iterator_t>
         bool parse_internal(iterator_t& start, iterator_t& end, typename ast<iterator_t>::type& tree)
         {
-            parser.parse(start, end, tree.child);
+            parser.parse_from(start, end, tree.child);
             return true;
         }
     };

@@ -21,10 +21,10 @@ namespace parse
 			{
 			}
 
-			std::basic_string<typename iterator_t::value_type> to_string()
-			{
-				return std::basic_string<typename iterator_t::value_type>(start, end);
-			}
+            std::basic_string<typename iterator_t::value_type> to_string()
+            {
+                return std::basic_string<typename iterator_t::value_type>(start, end);
+            }
 		};
 
 		template <typename iterator_t>
