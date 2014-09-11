@@ -2,8 +2,6 @@
 
 #include "parse.h"
 #include "unicode.h"
-#include "stream.h"
-#include <codecvt>
 
 namespace xml
 {
@@ -11,7 +9,7 @@ namespace xml
 	{
 		using namespace ::parse;
 		using namespace ::parse::operators;
-		using namespace ::parse::unicode;
+		using namespace ::parse::terminals;
 
 		auto lt = u<'<'>();
 		auto gt = u<'>'>();
@@ -27,8 +25,9 @@ namespace xml
 		auto cr = u<'\r'>();
 		auto lf = u<'\n'>();
 
-		auto name = alpha() >> *(alpha() | digit());
-		auto qname = !(name >> colon) >> name;
+		auto name = group(alpha() >> *(alpha() | digit()));
+
+		auto qname = group(!(name >> colon) >> name);
 
 		auto ws = +(space | tab | cr | lf);
 
@@ -66,37 +65,167 @@ namespace xml
 		typedef decltype(!ws >> lt >> qmark >> *(~qmark) >> qmark >> gt >> !ws) prolog;
 	}
 
-	class document;
+	template <typename unicode_container>
+    class document;
+
+    template <typename unicode_iterator>
 	class element;
 
-    std::string get_string(
-        parse::tree::ast_base<parser::streams::unicode_iterator>& ast)
+    template <typename unicode_iterator>
+    std::string get_string(parse::tree::ast_base<unicode_iterator>& ast)
     {
-        return ast.start.to_string(ast.end);
+        std::string ret;
+        utf8::utf32to8(ast.start, ast.end, std::back_inserter(ret));
+        return ret;
     }
 
+    template <typename unicode_iterator>
     class anchor
 	{
 	protected:
-        parser::streams::unicode_iterator iter;
+        unicode_iterator iter;
 
 	public:
-        anchor(parser::streams::unicode_iterator& start) : iter(start)
+        anchor(unicode_iterator& start) : iter(start)
 		{
 		}
 	};
 
-	class element : public anchor
+    template <typename unicode_iterator>
+    class attribute
+    {
+        typedef typename parse::ast_type<parser::attribute, unicode_iterator>::type ast_type;
+        
+        ast_type& ast;
+
+    public:
+        attribute(ast_type& a) : ast(a)
+        {
+        }
+
+        std::string name()
+        {
+            return get_string(ast[util::_i0]);
+        }
+
+        std::string local_name()
+		{
+			return get_string(ast[util::_i0][util::_i1]);
+		}
+
+        std::string prefix()
+        {
+            auto& pre = ast[util::_i0][util::_i0].option[util::_i0];
+            return pre.matched ? get_string(pre) : "";
+        }
+
+        std::string value()
+        {
+            auto& qstr = ast[util::_i2];
+            return qstr[util::_i0].matched ? 
+                get_string(qstr[util::_i0][util::_i1]) :
+                get_string(qstr[util::_i1][util::_i1]);
+        }
+    };
+
+    template <typename unicode_iterator>
+    class attribute_iterator : public std::iterator<std::forward_iterator_tag, attribute<unicode_iterator> >
+    {
+        typedef attribute<unicode_iterator> attribute_type;
+        typedef typename parse::ast_type<parser::attribute, unicode_iterator>::type ast_type;
+        typedef typename std::vector<ast_type>::iterator ast_iterator;
+
+        ast_iterator it;
+
+    public:
+        attribute_iterator(const ast_iterator& ast_it) : it(ast_it)
+        {
+        }
+
+        attribute_iterator(const attribute_iterator& other) : it(other.it)
+        {
+        }
+
+        attribute_type operator* ()
+        {
+            return attribute_type(*it);
+        }
+
+        bool operator== (const attribute_iterator& other)
+        {
+            return it == other.it;
+        }
+
+        bool operator!= (const attribute_iterator& other)
+        {
+            return it != other.it;
+        }
+
+        attribute_iterator& operator++ ()
+        {
+            it++;
+            return *this;
+        }
+
+        attribute_iterator operator++ (int)
+        {
+            attribute_iterator temp(*this);
+            it++;
+            return temp;
+        }
+    };
+
+    template <typename unicode_iterator>
+    class attribute_list
+    {
+    private:
+        typedef attribute<unicode_iterator> attribute_type;
+        typedef typename parse::ast_type<parser::attribute_list, unicode_iterator>::type ast_type;
+        ast_type& ast;
+
+    public:
+        typedef attribute_iterator<unicode_iterator> iterator;
+
+        attribute_list(ast_type& a) : ast(a) {}
+
+        iterator begin()
+        {
+            return ast[util::_i1].matched ? 
+                iterator(ast[util::_i1].children.begin()) : 
+                end();
+        }
+
+        iterator end()
+        {
+            return ast[util::_i1].children.end();
+        }
+
+        std::string operator[](const std::string& name)
+        {
+            auto it = std::find_if(begin(), end(), [&](decltype(*begin())& a)
+            {
+                return a.name() == name;
+            });
+
+            if (it == end()) throw std::exception("Attribute not present");
+            
+            return (*it).value();
+        }
+    };
+
+	template <typename unicode_iterator>
+    class element : public anchor<unicode_iterator>
 	{
-	private:
-		parse::ast_type<parser::element_open, parser::streams::unicode_iterator>::type ast;
+        typedef attribute_list<unicode_iterator> attribute_list_type;
+		typename parse::ast_type<parser::element_open, unicode_iterator>::type ast;
 
 	public:
-		element(
-            parser::streams::unicode_iterator& start) : anchor(start)
+        attribute_list_type attributes;
+
+		element(unicode_iterator& start, unicode_iterator& end) : anchor(start), attributes(ast[util::_i2].option)
 		{
 			parser::element_open parser;
-			if (!parser.parse_from(start, parser::streams::unicode_iterator(), ast)) throw std::exception("parse error");
+			if (!parser.parse_from(start, end, ast)) throw std::exception("parse error");
 		}
 
 		std::string name()
@@ -106,30 +235,41 @@ namespace xml
 
 		std::string local_name()
 		{
-			return get_string(ast[util::_i1]);
+			return get_string(ast[util::_i1].group[util::_i1]);
 		}
+
+        std::string prefix()
+        {
+            auto& pre = ast[util::_i1].group[util::_i0].option[util::_i0];
+            return pre.matched ? get_string(pre) : "";
+        }
 	};
 
-	class document
+	template <typename octet_container>
+    class document
 	{
-	private:
-        parser::streams::parse_buffer data;
-        parse::ast_type<parser::prolog, parser::streams::unicode_iterator>::type ast;
+        typedef typename unicode::unicode_container<octet_container> unicode_container;
+	    typedef typename unicode_container::iterator unicode_iterator;
+        typedef typename parse::ast_type<parser::prolog, unicode_iterator>::type ast_type;
+        typedef element<unicode_iterator> element_type;
+
+        unicode_container data;
+        ast_type ast;
 
 	public:
-		document(std::istream& stream) : data(stream.rdbuf())
+		document(octet_container& c) : data(c)
 		{
 		}
 
-		element root()
+		element_type root()
 		{
 			parser::prolog p;
-            auto iter = data.begin();
-			if (!p.parse_from(iter, data.end(), ast)) throw std::exception("parse error");
+            auto it = data.begin();
+            auto end = data.end();
+			if (!p.parse_from(it, end, ast)) throw std::exception("parse error");
 
-            return element(iter);
+            return element_type(it, end);
 		}
 	};
 
-	
 }

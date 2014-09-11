@@ -45,6 +45,43 @@ namespace parse
         }
     };
 
+    // This parser is useful for collecting series of alternates or sequences
+    // into logical groups.  Without using this class, a sequence created with
+    // an expression like "a >> b >> c", will generate a class with an AST type
+    // that has three children.  If what you really want is "(a >> b) >> c",
+    // i.e., a sequence of two elements, you must enclose the first
+    // sub-sesquence in a group classm like this: 
+    // 
+    //   auto elem1 = grouped<decltype(a >> b)>(); // Or group(a >> b), from parse::operators namespace
+    //   auto pair = elem1 >> c;
+    template <typename parser_t>
+    class grouped : public parser< grouped<parser_t> >
+    {
+        parser_t parser;
+
+    public:
+        template <typename iterator_t>
+        struct ast : public tree::ast_base<iterator_t>
+        {
+            typedef ast type;
+            typename parser_t::template ast<iterator_t>::type group;
+        };
+
+        grouped()
+        {
+        }
+
+        grouped(const parser_t& p) : parser(p)
+        {
+        }
+
+        template <typename iterator_t>
+        bool parse_internal(iterator_t& start, iterator_t& end, typename ast<iterator_t>::type& tree)
+        {
+            return parser.parse_from(start, end, tree.group);
+        }
+    };
+
     // A parser that matches if either of the two supplied parsers match.  The 
     // second parser won't be tried if the first matches.
     template <typename first_t, typename second_t>
@@ -214,7 +251,7 @@ namespace parse
         struct ast : public tree::ast_base<iterator_t>
         {
             typedef ast type;
-            typename ast_type<parser_t, iterator_t>::type child;
+            typename ast_type<parser_t, iterator_t>::type option;
         };
 
         parser_t parser;
@@ -223,7 +260,7 @@ namespace parse
         template <typename iterator_t>
         bool parse_internal(iterator_t& start, iterator_t& end, typename ast<iterator_t>::type& tree)
         {
-            parser.parse_from(start, end, tree.child);
+            parser.parse_from(start, end, tree.option);
             return true;
         }
     };
@@ -398,6 +435,39 @@ namespace parse
         {
             return complement< parser_t, token_t >(parser);
         }
+
+        // This is obviously not a c++ operator, but is included here since 
+        // it is intended to be used in operator expressions.
+        template <typename parser_t>
+        grouped<parser_t> group(const parser_t& p)
+        {
+            return grouped<parser_t>(p);
+        }
+    }
+
+    namespace terminals
+    {
+
+        template <char32_t t>
+		class u : public constant<unsigned int, t>
+		{
+		};
+
+		struct digit : public single<digit, char32_t>
+		{
+			bool match(char32_t t)
+			{
+				return isdigit(t) != 0;
+			}
+		};
+
+		struct alpha : public single<alpha, char32_t>
+		{
+			bool match(char32_t t)
+			{
+				return isalpha(t) != 0;
+			}
+		};
 
     }
 
