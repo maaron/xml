@@ -4,18 +4,18 @@ namespace util
 {
 
 	template <size_t i>
-	struct index {};
+	struct index : std::integral_constant<size_t, i> {};
 
-	index<0> _i0;
-	index<1> _i1;
-	index<2> _i2;
-	index<3> _i3;
-	index<4> _i4;
-	index<5> _i5;
-	index<6> _i6;
-	index<7> _i7;
-	index<8> _i8;
-	index<9> _i9;
+	static index<0> _0;
+	static index<1> _1;
+	static index<2> _2;
+	static index<3> _3;
+	static index<4> _4;
+	static index<5> _5;
+	static index<6> _6;
+	static index<7> _7;
+	static index<8> _8;
+	static index<9> _9;
 
 	// Creates a two element list
 	template <template <typename, typename> class derived_t, typename first_t, typename second_t>

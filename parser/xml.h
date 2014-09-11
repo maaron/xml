@@ -5,8 +5,11 @@
 
 namespace xml
 {
-	namespace parser
+    using namespace util;
+
+    namespace parser
 	{
+
 		using namespace ::parse;
 		using namespace ::parse::operators;
 		using namespace ::parse::terminals;
@@ -32,19 +35,11 @@ namespace xml
 		auto ws = +(space | tab | cr | lf);
 
 		auto eq = !ws >> equal >> !ws;
-		
-		struct content_chars : parse::parser<content_chars>
-		{
-			template <typename stream_t>
-			bool parse_internal(stream_t& s)
-			{
-				auto c = s.read();
-				return (
-					c != '<' &&
-					c != '>');
-			}
-		};
 
+        auto ltgt = lt | gt;
+
+        auto content_char = ~(ltgt);
+		
 		typedef decltype((squote >> *(~squote) >> squote) | (dquote >> *(~dquote) >> dquote)) qstring;
 
 		typedef decltype(qname >> eq >> qstring()) attribute;
@@ -57,7 +52,7 @@ namespace xml
 
 		struct element;
 		
-		typedef decltype(element_open() >> *(reference<element>() | *content_chars()) >> element_close()) element_base;
+		typedef decltype(element_open() >> *(reference<element>() | *content_char) >> element_close()) element_base;
 
 		struct element : element_base
 		{};
@@ -105,26 +100,26 @@ namespace xml
 
         std::string name()
         {
-            return get_string(ast[util::_i0]);
+            return get_string(ast[_0]);
         }
 
         std::string local_name()
 		{
-			return get_string(ast[util::_i0][util::_i1]);
+			return get_string(ast[_0][_1]);
 		}
 
         std::string prefix()
         {
-            auto& pre = ast[util::_i0][util::_i0].option[util::_i0];
+            auto& pre = ast[_0][_0].option[_0];
             return pre.matched ? get_string(pre) : "";
         }
 
         std::string value()
         {
-            auto& qstr = ast[util::_i2];
-            return qstr[util::_i0].matched ? 
-                get_string(qstr[util::_i0][util::_i1]) :
-                get_string(qstr[util::_i1][util::_i1]);
+            auto& qstr = ast[_2];
+            return qstr[_0].matched ? 
+                get_string(qstr[_0][_1]) :
+                get_string(qstr[_1][_1]);
         }
     };
 
@@ -190,14 +185,14 @@ namespace xml
 
         iterator begin()
         {
-            return ast[util::_i1].matched ? 
-                iterator(ast[util::_i1].children.begin()) : 
+            return ast[_1].matched ? 
+                iterator(ast[_1].children.begin()) : 
                 end();
         }
 
         iterator end()
         {
-            return ast[util::_i1].children.end();
+            return ast[_1].children.end();
         }
 
         std::string operator[](const std::string& name)
@@ -222,7 +217,7 @@ namespace xml
 	public:
         attribute_list_type attributes;
 
-		element(unicode_iterator& start, unicode_iterator& end) : anchor(start), attributes(ast[util::_i2].option)
+		element(unicode_iterator& start, unicode_iterator& end) : anchor(start), attributes(ast[_2].option)
 		{
 			parser::element_open parser;
 			if (!parser.parse_from(start, end, ast)) throw std::exception("parse error");
@@ -230,17 +225,17 @@ namespace xml
 
 		std::string name()
 		{
-			return get_string(ast[util::_i1]);
+			return get_string(ast[_1]);
 		}
 
 		std::string local_name()
 		{
-			return get_string(ast[util::_i1].group[util::_i1]);
+			return get_string(ast[_1].group[_1]);
 		}
 
         std::string prefix()
         {
-            auto& pre = ast[util::_i1].group[util::_i0].option[util::_i0];
+            auto& pre = ast[_1].group[_0].option[_0];
             return pre.matched ? get_string(pre) : "";
         }
 	};

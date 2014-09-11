@@ -18,6 +18,31 @@
 #include "parse.h"
 #include "xml.h"
 
+namespace test
+{
+    using namespace parse::operators;
+    using namespace parse::terminals;
+
+    struct grammar
+    {
+        static u<'1'> one;
+        static u<'2'> two;
+
+        typedef decltype(one >> two) onetwo_t;
+
+        void parse()
+        {
+            onetwo_t onetwo;
+            std::string data("12");
+            parse::ast_type<decltype(onetwo), std::string::iterator>::type ast;
+            onetwo.parse(data, ast);
+
+            parse::ast_type<decltype(one), std::string::iterator>::type ast1;
+            one.parse(data, ast1);
+        }
+    };
+}
+
 int _tmain(int argc, _TCHAR* argv[])
 {
     /* Unicode tests

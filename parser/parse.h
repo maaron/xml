@@ -292,6 +292,29 @@ namespace parse
         }
     };
 
+    // A parser that matches if either of the two supplied parsers match.  The 
+    // second parser won't be tried if the first matches.
+    template <typename first_t, typename second_t, typename token_t>
+    class single_alternate : public single< single_alternate<first_t, second_t, token_t>, token_t >
+    {
+        first_t first;
+        second_t second;
+
+    public:
+        single_alternate()
+        {
+        }
+        
+        single_alternate(const first_t& first, const second_t& second) : first(first), second(second)
+        {
+        }
+
+        bool match(char c)
+        {
+            return first.match(c) || second.match(c);
+        }
+    };
+
     // A parser that matches a single token that is anything other the what 
     // the parser_t type matches.  This cannot be used with variable-length 
     // (in tokens) parsers.
@@ -434,6 +457,13 @@ namespace parse
         complement< parser_t, token_t > operator~ (const single<parser_t, token_t>& parser)
         {
             return complement< parser_t, token_t >(parser);
+        }
+
+        // Sequence operator that preserves the single-ness of the parser
+        template <typename first_t, typename second_t, typename token_t>
+        single_alternate< single<first_t, token_t>, single<second_t, token_t>, token_t > operator| (const single<first_t, token_t>& first, const single<second_t, token_t>& second)
+        {
+            return single_alternate< single<first_t, token_t>, single<second_t, token_t>, token_t >(first, second);
         }
 
         // This is obviously not a c++ operator, but is included here since 
