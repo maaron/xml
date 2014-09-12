@@ -36,9 +36,7 @@ namespace xml
 
 		auto eq = !ws >> equal >> !ws;
 
-        auto ltgt = lt | gt;
-
-        auto content_char = ~(ltgt);
+        auto content_char = ~(lt | gt);
 		
 		typedef decltype((squote >> *(~squote) >> squote) | (dquote >> *(~dquote) >> dquote)) qstring;
 
@@ -51,13 +49,20 @@ namespace xml
 		typedef decltype(lt >> fslash >> qname >> gt) element_close;
 
 		struct element;
-		
-		typedef decltype(element_open() >> *(reference<element>() | *content_char) >> element_close()) element_base;
 
-		struct element : element_base
-		{};
+        typedef decltype(*(reference<element>() | *content_char)) element_content;
+		
+		struct element : public decltype(element_open() >> element_content() >> element_close())
+        {
+        };
 
 		typedef decltype(!ws >> lt >> qmark >> *(~qmark) >> qmark >> gt >> !ws) prolog;
+
+        struct test_referred;
+
+        typedef decltype(reference<test_referred>()) refer;
+
+        struct test_referred : public u<' '> {};
 	}
 
 	template <typename unicode_container>
@@ -79,9 +84,10 @@ namespace xml
 	{
 	protected:
         unicode_iterator iter;
+        unicode_iterator end;
 
 	public:
-        anchor(unicode_iterator& start) : iter(start)
+        anchor(unicode_iterator& start, unicode_iterator& end) : iter(start), end(end)
 		{
 		}
 	};
@@ -213,14 +219,17 @@ namespace xml
 	{
         typedef attribute_list<unicode_iterator> attribute_list_type;
 		typename parse::ast_type<parser::element_open, unicode_iterator>::type ast;
+        typename parse::ast_type<parser::element_content, unicode_iterator>::type content_ast;
 
 	public:
         attribute_list_type attributes;
+        unicode_iterator content_start;
 
-		element(unicode_iterator& start, unicode_iterator& end) : anchor(start), attributes(ast[_2].option)
+		element(unicode_iterator& start, unicode_iterator& end) : anchor(start, end), attributes(ast[_2].option)
 		{
 			parser::element_open parser;
 			if (!parser.parse_from(start, end, ast)) throw std::exception("parse error");
+            content_start = start;
 		}
 
 		std::string name()
@@ -237,6 +246,20 @@ namespace xml
         {
             auto& pre = ast[_1].group[_0].option[_0];
             return pre.matched ? get_string(pre) : "";
+        }
+
+        std::string text()
+        {
+            parser::element_content parser;
+            if (!parser.parse_from(content_start, end, content_ast)) throw std::exception("parse error");
+            std::string content;
+
+            for (auto child = content_ast.children.begin();
+                child != content_ast.children.end(); child++)
+            {
+                if ((*child)[_1].matched) content += get_string((*child)[_1]);
+            }
+            return content;
         }
 	};
 

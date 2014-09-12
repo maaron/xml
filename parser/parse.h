@@ -14,6 +14,12 @@ namespace parse
         typedef typename parser_t::template ast<iterator_t>::type type;
     };
 
+    template <bool single>
+    struct parser_traits
+    {
+        static const bool is_single = single;
+    };
+
     // Base class for all parsers.  The main method, parse(stream_t&, ast&) 
     // tracks the start and end positions of the underlying parser's match, and 
     // updates the AST accordingly.
@@ -21,8 +27,8 @@ namespace parse
     class parser
     {
     public:
-        template <typename iterator_t, typename ast_t>
-        bool parse_from(iterator_t& start, iterator_t& end, ast_t& ast)
+        template <typename iterator_t>
+        bool parse_from(iterator_t& start, iterator_t& end, typename ast_type<derived_t, iterator_t>::type& ast)
         {
             auto matchEnd = start;
 
@@ -55,7 +61,7 @@ namespace parse
     //   auto elem1 = grouped<decltype(a >> b)>(); // Or group(a >> b), from parse::operators namespace
     //   auto pair = elem1 >> c;
     template <typename parser_t>
-    class grouped : public parser< grouped<parser_t> >
+    class grouped : public parser< grouped<parser_t> >, public parser_traits<parser_t::is_single>
     {
         parser_t parser;
 
@@ -82,15 +88,27 @@ namespace parse
         }
     };
 
+    // This meta-function is used to get the token_type of an alternate 
+    // parser.  If the alternate is not a single token itself, it resolves to 
+    // void.
+    template <typename parser_t, bool single>
+    struct token_type { typedef void type; };
+
+    template <typename parser_t>
+    struct token_type<parser_t, true> { typedef typename parser_t::token_type type; };
+
     // A parser that matches if either of the two supplied parsers match.  The 
     // second parser won't be tried if the first matches.
     template <typename first_t, typename second_t>
-    class alternate : public parser< alternate<first_t, second_t> >
+    class alternate : public parser< alternate<first_t, second_t> >, 
+        public parser_traits<first_t::is_single && second_t::is_single>
     {
         first_t first;
         second_t second;
 
     public:
+        typedef typename token_type<first_t, is_single>::type token_type;
+
         template <typename iterator_t>
         struct ast
         {
@@ -119,7 +137,8 @@ namespace parse
     // A parser that matches only if both of the given parsers match in 
     // sequence.
     template <typename first_t, typename second_t>
-    class sequence : public parser< sequence<first_t, second_t> >
+    class sequence : public parser< sequence<first_t, second_t> >,
+        public parser_traits<false>
     {
         first_t first;
         second_t second;
@@ -137,8 +156,11 @@ namespace parse
         struct ast
         {
             typedef typename tree::template ast_list<iterator_t>::template sequence<
-            typename first_t::template ast<iterator_t>::type,
-            typename second_t::template ast<iterator_t>::type> type;
+                typename first_t::template ast<iterator_t>::type,
+                
+                typename second_t::template ast<iterator_t>::type> 
+                
+                type;
         };
 
         template <typename iterator_t>
@@ -152,7 +174,8 @@ namespace parse
     // Matches the specified parser zero or more times.  The stream is checked 
     // for eof first, which is still considered a match.
     template <typename parser_t>
-    class zero_or_more : public parser< zero_or_more<parser_t> >
+    class zero_or_more : public parser< zero_or_more<parser_t> >,
+        public parser_traits<false>
     {
         parser_t elem;
 
@@ -189,7 +212,8 @@ namespace parse
     };
 
     template <typename parser_t, size_t min, size_t max = SIZE_MAX>
-    class repetition : public parser< repetition<parser_t, min, max> >
+    class repetition : public parser< repetition<parser_t, min, max> >,
+        public parser_traits<false>
     {
         friend class parser< repetition<parser_t, min, max> >;
 
@@ -234,7 +258,8 @@ namespace parse
     };
 
     template <typename parser_t>
-    class optional : public parser< optional<parser_t> >
+    class optional : public parser< optional<parser_t> >,
+        public parser_traits<false>
     {
         friend class parser< optional<parser_t> >;
 
@@ -271,9 +296,12 @@ namespace parse
     // token_t, can be any type with a parameterless constructor.  Also, the 
     // stream_t must return values that are assignable to token_t.
     template <typename derived_t, typename token_t>
-    class single : public parser< single<derived_t, token_t> >
+    class single : public parser< single<derived_t, token_t> >,
+        public parser_traits<true>
     {
     public:
+        typedef token_t token_type;
+
         template <typename iterator_t>
         struct ast : public tree::ast_base<iterator_t>
         {
@@ -292,37 +320,18 @@ namespace parse
         }
     };
 
-    // A parser that matches if either of the two supplied parsers match.  The 
-    // second parser won't be tried if the first matches.
-    template <typename first_t, typename second_t, typename token_t>
-    class single_alternate : public single< single_alternate<first_t, second_t, token_t>, token_t >
-    {
-        first_t first;
-        second_t second;
-
-    public:
-        single_alternate()
-        {
-        }
-        
-        single_alternate(const first_t& first, const second_t& second) : first(first), second(second)
-        {
-        }
-
-        bool match(char c)
-        {
-            return first.match(c) || second.match(c);
-        }
-    };
-
     // A parser that matches a single token that is anything other the what 
     // the parser_t type matches.  This cannot be used with variable-length 
     // (in tokens) parsers.
     template <typename parser_t, typename token_t>
     class complement : public single< complement<parser_t, token_t>, token_t >
     {
-    public:
         parser_t parser;
+
+    public:
+        complement(const parser_t& p) : parser(p) {}
+
+        complement() {}
 
         bool match(char c)
         {
@@ -395,23 +404,36 @@ namespace parse
         }
     };
 
+    // This should probably go in the tree namespace.  This is defined here, 
+    // as opposed to being a nested struct in the reference class, as the 
+    // alternative proceduces a self-referring template.  It is believed this 
+    // fails because it can't refer to itself while it is being compiled.  
+    // Using a separate template (non-nested) allows the reference class to
+    // reference itself without instanciating itself.
+    template <typename parser_t, typename iterator_t>
+    struct reference_ast : public tree::ast_base<iterator_t>
+    {
+        std::shared_ptr<typename parser_t::template ast<iterator_t>::type> ptr;
+    };
+
     template <typename parser_t>
-    class reference : public parser< reference<parser_t> >
+    class reference : public parser< reference<parser_t> >,
+        public parser_traits<false>
     {
     public:
         template <typename iterator_t>
         struct ast : public tree::ast_base<iterator_t>
         {
-            std::shared_ptr<typename ast_type<parser_t, iterator_t>::type> ptr;
+            typedef reference_ast<parser_t, iterator_t> type;
         };
 
         template <typename iterator_t>
-        bool parse(iterator_t& start, iterator_t& end, typename ast<iterator_t>::type& tree)
+        bool parse_internal(iterator_t& start, iterator_t& end, typename ast<iterator_t>::type& tree)
         {
             typedef typename ast_type<parser_t, iterator_t>::type p_tree;
             parser_t parser;
-            ast.ptr.reset(new p_tree());
-            return parser.parse(s, *ast.ptr);
+            tree.ptr.reset(new p_tree());
+            return parser.parse_from(start, end, *tree.ptr);
         }
     };
 
@@ -459,11 +481,11 @@ namespace parse
             return complement< parser_t, token_t >(parser);
         }
 
-        // Sequence operator that preserves the single-ness of the parser
-        template <typename first_t, typename second_t, typename token_t>
-        single_alternate< single<first_t, token_t>, single<second_t, token_t>, token_t > operator| (const single<first_t, token_t>& first, const single<second_t, token_t>& second)
+        template <typename parser_t>
+        typename std::enable_if<parser_t::is_single, complement< parser_t, typename parser_t::token_type > >::type
+            operator~ (const parser_t& parser)
         {
-            return single_alternate< single<first_t, token_t>, single<second_t, token_t>, token_t >(first, second);
+            return complement< parser_t, typename parser_t::token_type >(parser);
         }
 
         // This is obviously not a c++ operator, but is included here since 

@@ -39,9 +39,6 @@
     <ClInclude Include="unicode.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="stream.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">

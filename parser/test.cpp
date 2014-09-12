@@ -1,14 +1,12 @@
 // test.cpp : Defines the entry point for the console application.
 //
 
+#include "stdafx.h"
+
 // The extensive use of templates causes this "decorated name length too 
 // long" warning all over the place.  Since we aren't exporting any of these 
 // template instanciations in a library, it is safe to ignore.
 #pragma warning( disable : 4503 )
-
-#include "stdafx.h"
-
-#include <boost\foreach.hpp>
 
 #include <string>
 #include <sstream>
@@ -106,6 +104,8 @@ int _tmain(int argc, _TCHAR* argv[])
     });
 
     auto attribute1 = root.attributes["attribute1"];
+
+    auto text = root.text();
 
     return 0;
 }
