@@ -19,6 +19,15 @@ namespace parse
     {
         static const bool is_single = single;
     };
+      
+    template <bool single, template <typename> class ast_t>
+    struct parser_traits2
+    {
+        static const bool is_single = single;
+
+        template <typename iterator_t>
+        struct ast { typedef typename ast_t<iterator_t>::type type; };
+    };
 
     // Base class for all parsers.  The main method, parse(stream_t&, ast&) 
     // tracks the start and end positions of the underlying parser's match, and 
@@ -44,8 +53,8 @@ namespace parse
             }
         }
 
-        template <typename stream_t, typename ast_t>
-        bool parse(stream_t& s, ast_t& ast)
+        template <typename stream_t>
+        bool parse(stream_t& s, typename ast_type<derived_t, typename stream_t::iterator>::type& ast)
         {
             return parse_from(s.begin(), s.end(), ast);
         }
@@ -168,10 +177,7 @@ namespace parse
         {
             typedef typename tree::template ast_list<iterator_t>::template sequence<
                 typename first_t::template ast<iterator_t>::type,
-                
-                typename second_t::template ast<iterator_t>::type> 
-                
-                type;
+                typename second_t::template ast<iterator_t>::type> type;
         };
 
         template <typename iterator_t>
@@ -203,7 +209,7 @@ namespace parse
         struct ast : public tree::ast_base<iterator_t>
         {
             typedef ast type;
-            std::vector<typename ast_type<parser_t, iterator_t>::type> children;
+            std::vector<typename ast_type<parser_t, iterator_t>::type> matches;
         };
 
         template <typename iterator_t, typename ast_t>
@@ -219,7 +225,7 @@ namespace parse
                 // parser_t can have a valid, zero-length match.
                 if (elem_tree.start == elem_tree.end) break;
 
-                ast.children.push_back(elem_tree);
+                ast.matches.push_back(elem_tree);
             }
             return true;
         }
@@ -244,7 +250,7 @@ namespace parse
         struct ast : public tree::ast_base<iterator_t>
         {
             typedef ast type;
-            std::vector<typename ast_type<parser_t, iterator_t>::type> children;
+            std::vector<typename ast_type<parser_t, iterator_t>::type> matches;
         };
 
     protected:
@@ -258,14 +264,14 @@ namespace parse
             {
                 typename ast_type<parser_t, iterator_t>::type child;
                 if (!parser.parse_from(start, end, child)) return false;
-                tree.children.push_back(child);
+                tree.matches.push_back(child);
             }
 
             for (; i < max; i++)
             {
                 typename ast_type<parser_t, iterator_t>::type child;
                 if (start == end || !parser.parse_from(start, end, child)) break;
-                tree.children.push_back(child);
+                tree.matches.push_back(child);
             }
             return true;
         }

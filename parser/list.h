@@ -25,7 +25,6 @@ namespace util
 		second_t second;
 
 		static const size_t size = 2;
-		static const size_t lastindex = 1;
 
 		template <size_t i> struct elem;
 		template <> struct elem<0> { typedef first_t type; };

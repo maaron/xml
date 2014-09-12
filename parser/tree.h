@@ -45,7 +45,7 @@ namespace parse
 			};
 		};
 
-		template <typename parser_t, typename stream_t>
+        template <typename parser_t, typename stream_t>
 		typename parser_t::template ast< typename stream_t::iterator >::type make_ast(parser_t& p, stream_t& s)
 		{
 			return typename parser_t::ast<typename stream_t::iterator>::type();

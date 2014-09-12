@@ -51,21 +51,21 @@ namespace xml
 		struct element;
 
         typedef decltype(*(reference<element>() | *content_char)) element_content;
+
+        typedef decltype(element_open() >> element_content() >> element_close()) element_base;
 		
-		struct element : public decltype(element_open() >> element_content() >> element_close())
+		struct element : public element_base
         {
         };
 
 		typedef decltype(!ws >> lt >> qmark >> *(~qmark) >> qmark >> gt >> !ws) prolog;
 
-        struct test_referred;
+        // This parser reads the next element open or close tag, skipping over any preceeding content
+        typedef decltype(*parser::content_char >> (parser::element_open() | parser::element_close())) next_open;
 
-        typedef decltype(reference<test_referred>()) refer;
-
-        struct test_referred : public u<' '> {};
 	}
 
-	template <typename unicode_container>
+	template <typename octet_container>
     class document;
 
     template <typename unicode_iterator>
@@ -87,9 +87,14 @@ namespace xml
         unicode_iterator end;
 
 	public:
-        anchor(unicode_iterator& start, unicode_iterator& end) : iter(start), end(end)
+        anchor(const unicode_iterator& start, const unicode_iterator& end) : iter(start), end(end)
 		{
 		}
+
+        void set_anchor(const unicode_iterator& start)
+        {
+            iter = start;
+        }
 	};
 
     template <typename unicode_iterator>
@@ -129,48 +134,48 @@ namespace xml
         }
     };
 
-    template <typename unicode_iterator>
-    class attribute_iterator : public std::iterator<std::forward_iterator_tag, attribute<unicode_iterator> >
+    template <template <typename> class node, template <typename> class ast_templ, typename unicode_iterator>
+    class node_iterator : public std::iterator<std::forward_iterator_tag, node<unicode_iterator> >
     {
-        typedef attribute<unicode_iterator> attribute_type;
-        typedef typename parse::ast_type<parser::attribute, unicode_iterator>::type ast_type;
+        typedef node<unicode_iterator> node_type;
+        typedef typename ast_templ<unicode_iterator>::type ast_type;
         typedef typename std::vector<ast_type>::iterator ast_iterator;
 
         ast_iterator it;
 
     public:
-        attribute_iterator(const ast_iterator& ast_it) : it(ast_it)
+        node_iterator(const ast_iterator& ast_it) : it(ast_it)
         {
         }
 
-        attribute_iterator(const attribute_iterator& other) : it(other.it)
+        node_iterator(const node_iterator& other) : it(other.it)
         {
         }
 
-        attribute_type operator* ()
+        node_type operator* ()
         {
-            return attribute_type(*it);
+            return node_type(*it);
         }
 
-        bool operator== (const attribute_iterator& other)
+        bool operator== (const node_iterator& other)
         {
             return it == other.it;
         }
 
-        bool operator!= (const attribute_iterator& other)
+        bool operator!= (const node_iterator& other)
         {
             return it != other.it;
         }
 
-        attribute_iterator& operator++ ()
+        node_iterator& operator++ ()
         {
             it++;
             return *this;
         }
 
-        attribute_iterator operator++ (int)
+        node_iterator operator++ (int)
         {
-            attribute_iterator temp(*this);
+            node_iterator temp(*this);
             it++;
             return temp;
         }
@@ -185,20 +190,136 @@ namespace xml
         ast_type& ast;
 
     public:
-        typedef attribute_iterator<unicode_iterator> iterator;
+        typedef node_iterator<attribute, parser::attribute::ast, unicode_iterator> iterator;
 
         attribute_list(ast_type& a) : ast(a) {}
 
         iterator begin()
         {
             return ast[_1].matched ? 
-                iterator(ast[_1].children.begin()) : 
+                iterator(ast[_1].matches.begin()) : 
                 end();
         }
 
         iterator end()
         {
-            return ast[_1].children.end();
+            return ast[_1].matches.end();
+        }
+
+        std::string operator[](const std::string& name)
+        {
+            auto it = std::find_if(begin(), end(), [&](decltype(*begin())& a)
+            {
+                return a.name() == name;
+            });
+
+            if (it == end()) throw std::exception("Attribute not present");
+            
+            return (*it).value();
+        }
+    };
+
+    template <typename unicode_iterator>
+    class element_iterator : public std::iterator<std::forward_iterator_tag, element<unicode_iterator> >,
+        public anchor<unicode_iterator>
+    {
+        typedef element<unicode_iterator> element_type;
+        typedef typename parser::next_open::ast<unicode_iterator>::type open_ast;
+
+        open_ast open;
+
+    public:
+        element_iterator(const unicode_iterator& start, const unicode_iterator& end) 
+            : anchor(start, end)
+        {
+            get();
+        }
+
+        element_iterator(const element_iterator& other) : open(other.open), anchor(other)
+        {
+        }
+
+        element_type operator* ()
+        {
+            if (iter == end) throw std::exception("iterator out of bounds");
+            return element_type(open[_1][_0], end);
+        }
+
+        bool operator== (const element_iterator& other)
+        {
+            return iter == other.iter;
+        }
+
+        bool operator!= (const element_iterator& other)
+        {
+            return iter != other.iter;
+        }
+
+        element_iterator& operator++ ()
+        {
+            advance();
+            return *this;
+        }
+
+        element_iterator operator++ (int)
+        {
+            element_iterator temp(*this);
+            advance();
+            return temp;
+        }
+
+    private:
+        void advance()
+        {
+            if (iter == end) return;
+
+            using namespace parse::operators;
+
+            // Parse the remainder of the content, plus the closing tag.
+            typedef decltype(parser::element_content() >> parser::element_close()) content_parser;
+            typedef typename content_parser::ast<unicode_iterator>::type content_ast;
+
+            content_parser content;
+            content_ast ast;
+            if (!content.parse_from(iter, end, ast)) throw std::exception("parse error");
+
+            get();
+        }
+
+        void get()
+        {
+            if (iter == end) return;
+
+            parser::next_open p;
+            if (!p.parse_from(iter, end, open)) throw std::exception("parse error");
+
+            // If we get an element close, that means we are finished 
+            // iterating.
+            if (open[_1][_1].matched) iter == end;
+        }
+    };
+
+    template <typename unicode_iterator>
+    class element_list : public anchor<unicode_iterator>
+    {
+
+    public:
+        typedef element<unicode_iterator> element_type;
+        typedef element_iterator<unicode_iterator> iterator;
+
+        element_list(const unicode_iterator& start, const unicode_iterator& end) 
+            : anchor(iter, end)
+        {
+        }
+
+        iterator begin()
+        {
+            return iterator(iter, anchor<unicode_iterator>::end);
+        }
+
+        iterator end()
+        {
+            return iterator(anchor<unicode_iterator>::end, anchor<unicode_iterator>::end);
         }
 
         std::string operator[](const std::string& name)
@@ -217,58 +338,63 @@ namespace xml
 	template <typename unicode_iterator>
     class element : public anchor<unicode_iterator>
 	{
-        typedef attribute_list<unicode_iterator> attribute_list_type;
-		typename parse::ast_type<parser::element_open, unicode_iterator>::type ast;
-        typename parse::ast_type<parser::element_content, unicode_iterator>::type content_ast;
-
-	public:
-        attribute_list_type attributes;
+        typedef typename parse::ast_type<parser::element_open, unicode_iterator>::type open_ast;
+        typedef typename parse::ast_type<parser::element_content, unicode_iterator>::type content_ast;
         unicode_iterator content_start;
 
-		element(unicode_iterator& start, unicode_iterator& end) : anchor(start, end), attributes(ast[_2].option)
+        open_ast open;
+        content_ast content;
+
+	public:
+        typedef attribute_list<unicode_iterator> attribute_list_type;
+        typedef attribute<unicode_iterator> attribute_type;
+
+        typedef element_list<unicode_iterator> element_list_type;
+
+        attribute_list_type attributes;
+        element_list_type elements;
+
+		element(unicode_iterator& start, unicode_iterator& end) : anchor(start, end), attributes(open[_2].option), elements(end, end)
 		{
 			parser::element_open parser;
-			if (!parser.parse_from(start, end, ast)) throw std::exception("parse error");
+			if (!parser.parse_from(start, end, open)) throw std::exception("parse error");
             content_start = start;
+            elements.set_anchor(start);
 		}
+
+        element(open_ast& a, unicode_iterator& end) : open(a), content_start(a.end), anchor(a.start, end), attributes(a[_2].option), elements(a.end, end)
+        {
+        }
 
 		std::string name()
 		{
-			return get_string(ast[_1]);
+			return get_string(open[_1]);
 		}
 
 		std::string local_name()
 		{
-			return get_string(ast[_1].group[_1]);
+			return get_string(open[_1].group[_1]);
 		}
 
         std::string prefix()
         {
-            auto& pre = ast[_1].group[_0].option[_0];
+            auto& pre = open[_1].group[_0].option[_0];
             return pre.matched ? get_string(pre) : "";
         }
 
         std::string text()
         {
             parser::element_content parser;
-            if (!parser.parse_from(content_start, end, content_ast)) throw std::exception("parse error");
-            std::string content;
-            /*
-            for (auto child = content_ast.children.begin();
-                child != content_ast.children.end(); child++)
+            if (!parser.parse_from(content_start, end, content)) throw std::exception("parse error");
+            std::string ret;
+            
+            for (auto child = content.matches.begin();
+                child != content.matches.end(); child++)
             {
-                auto& c = *child;
-                auto& text_ast = c[_1];
-                if (text_ast.matched) content += get_string(text_ast);
+                auto& text_ast = (*child)[_1];
+                if (text_ast.matched) ret += get_string(text_ast);
             }
-            */
-            for (size_t i = 0; i < content_ast.children.size(); i++)
-            {
-                auto& c = content_ast.children[i];
-                auto& text_ast = c[_1];
-                if (text_ast.matched) content += get_string(c);
-            }
-            return content;
+            return ret;
         }
 	};
 
@@ -278,12 +404,13 @@ namespace xml
         typedef typename unicode::unicode_container<octet_container> unicode_container;
 	    typedef typename unicode_container::iterator unicode_iterator;
         typedef typename parse::ast_type<parser::prolog, unicode_iterator>::type ast_type;
-        typedef element<unicode_iterator> element_type;
 
         unicode_container data;
         ast_type ast;
 
 	public:
+        typedef element<unicode_iterator> element_type;
+
 		document(octet_container& c) : data(c)
 		{
 		}
@@ -298,5 +425,13 @@ namespace xml
             return element_type(it, end);
 		}
 	};
+
+    template <typename octet_container>
+    struct defs
+    {
+        typedef xml::document<octet_container> document;
+        typedef typename document::element_type element;
+        typedef typename element::attribute_type attribute;
+    };
 
 }

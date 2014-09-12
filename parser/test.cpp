@@ -16,29 +16,103 @@
 #include "parse.h"
 #include "xml.h"
 
-namespace test
+// This demonstrates using a custom AST type to have more type-safe access to 
+// elements.  Instead of using the operator[] overloads directly, these AST 
+// classes add named accessor methods to retrieve the various parts of the 
+// underlying AST.  Note that the get accessor's themselves are using the
+// "unsafe" operator[]'s, but once they are written, any code that uses those
+// AST types can use the custom methods, which won't compile if the grammar is
+// modified.  The operator[]'s on the other hand, will generally just silently
+// start grabbing the wrong part of the AST.
+// A downside to this method is that we seem to get some strange errors in 
+// xlocnum.h, associated with bringing the parse::operators namespace in to 
+// scope alongside the accessors.
+namespace custom_ast_test
 {
-    using namespace parse::operators;
     using namespace parse::terminals;
 
-    struct grammar
+    static u<'1'> uone;
+    static u<'2'> utwo;
+    static u<'3'> uthree;
+
+    namespace expressions
     {
-        static u<'1'> one;
-        static u<'2'> two;
+        using namespace parse::operators;
 
-        typedef decltype(one >> two) onetwo_t;
+    //typedef parse::sequence<parse::sequence<u<'1'>, u<'2'> >, u<'3'> > base_t;
+        typedef decltype(uone >> utwo >> uthree) base_t;
+    }
 
-        void parse()
+    struct parser_t : public expressions::base_t
+    {
+        template <typename iterator_t>
+        struct ast : public parse::ast_type<expressions::base_t, iterator_t>::type
         {
-            onetwo_t onetwo;
-            std::string data("12");
-            parse::ast_type<decltype(onetwo), std::string::iterator>::type ast;
-            onetwo.parse(data, ast);
+            typedef ast type;
+            
+            typename parse::ast_type<decltype(uone), iterator_t>::type& get_one()
+            {
+                return (*this)[util::_0];
+            }
 
-            parse::ast_type<decltype(one), std::string::iterator>::type ast1;
-            one.parse(data, ast1);
-        }
+            typename parse::ast_type<decltype(utwo), iterator_t>::type& get_two()
+            {
+                return (*this)[util::_1];
+            }
+
+            typename parse::ast_type<decltype(uthree), iterator_t>::type& get_three()
+            {
+                return (*this)[util::_2];
+            }
+        };
     };
+
+    namespace expressions
+    {
+        using namespace parse::operators;
+
+        typedef decltype(utwo >> uthree >> parser_t()) base2_t;
+    }
+
+    struct parser2_t : public expressions::base2_t
+    {
+        template <typename iterator_t>
+        struct ast : public expressions::base2_t::ast<iterator_t>::type
+        {
+            typedef ast type;
+            
+            typename parse::ast_type<parser_t, iterator_t>::type& get_one()
+            {
+                return (*this)[util::_2];
+            }
+
+            typename parse::ast_type<decltype(utwo), iterator_t>::type& get_two()
+            {
+                return (*this)[util::_0];
+            }
+
+            typename parse::ast_type<decltype(uthree), iterator_t>::type& get_three()
+            {
+                return (*this)[util::_1];
+            }
+        };
+    };
+
+    void foo()
+    {
+        parser2_t p;
+        std::string data("23123");
+        parse::ast_type<parser2_t, std::string::iterator>::type ast;
+        p.parse(data, ast);
+
+        auto& c1 = ast.get_one();
+        auto& c2 = ast.get_two();
+        auto& c3 = ast.get_three();
+
+        auto& c1c1 = c1.get_one();
+        auto& c1c2 = c1.get_two();
+        auto& c1c3 = c1.get_three();
+    }
 }
 
 int _tmain(int argc, _TCHAR* argv[])
@@ -71,7 +145,7 @@ int _tmain(int argc, _TCHAR* argv[])
     */
 
     // XML reader test
-    
+
     // UTF-8 encoding
     std::string xml_data("\xEF\xBB\xBF<?xml encoding='UTF-8'?><nspre:root attribute1=\"value1\">root content part 1<ns:child1>child1 content<grandchild11></grandchild11></ns:child1><child2>child2 content</child2></nspre:root>");
     
@@ -79,7 +153,17 @@ int _tmain(int argc, _TCHAR* argv[])
     //std::wstring wxml_data(L"\uFEFF<?xml encoding='UTF-8'?><nspre:root attribute1=\"value1\">root content part 1<ns:child1>child1 content<grandchild11></grandchild11></ns:child1><child2>child2 content</child2></nspre:root>");
     //std::string xml_data((const char*)wxml_data.c_str(), wxml_data.size() * 2);
 
-    xml::document<std::string> doc(xml_data);
+    // Some typedefs for convenience
+    typedef xml::document<std::string> document;
+    typedef document::element_type element;
+    typedef element::attribute_type attribute;
+
+    std::string test_data("asdfdf</nspre:root>");
+    xml::parser::next_open p;
+    xml::parser::next_open::ast<std::string::iterator>::type ast;
+    bool valid = p.parse(test_data, ast);
+    
+    document doc(xml_data);
 
     auto root = doc.root();
 
@@ -88,17 +172,8 @@ int _tmain(int argc, _TCHAR* argv[])
     auto prefix = root.prefix();
 
     auto& attributes = root.attributes;
-    // TODO: The long template instantiation to get the concrete 
-    // xml::attribute type is very cumbersome... look for a better way to do 
-    // this.
-    //std::for_each(attributes.begin(), attributes.end(), [](xml::attribute<unicode::unicode_iterator<std::string::iterator> >& a)
-
-    // This is a little easier, and could be wrapped up in a convenient macro.  Could also probably use Boost.Foreach.
-    //std::for_each(attributes.begin(), attributes.end(), [](decltype(*attributes.begin())& a)
-
-#define foreach(var, container) std::for_each(container.begin(), container.end(), [](decltype(*container.begin())& var)
-
-    foreach(a, root.attributes)
+    
+    std::for_each(attributes.begin(), attributes.end(), [](attribute& a)
     {
         std::cout << "root attribute: " << a.name() << "=" << a.value() << std::endl;
     });
@@ -106,6 +181,13 @@ int _tmain(int argc, _TCHAR* argv[])
     auto attribute1 = root.attributes["attribute1"];
 
     auto text = root.text();
+
+    std::for_each(root.elements.begin(), root.elements.end(), [](element& e)
+    {
+        std::cout << "child element: " << e.name() << std::endl;
+    });
+
+    //custom_ast_test::foo();
 
     return 0;
 }
