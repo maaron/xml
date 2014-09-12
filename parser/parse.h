@@ -98,7 +98,9 @@ namespace parse
     struct token_type<parser_t, true> { typedef typename parser_t::token_type type; };
 
     // A parser that matches if either of the two supplied parsers match.  The 
-    // second parser won't be tried if the first matches.
+    // second parser won't be tried if the first matches.  This class supports
+    // general parser alternates, and also has special support for single 
+    // token alternates.
     template <typename first_t, typename second_t>
     class alternate : public parser< alternate<first_t, second_t> >, 
         public parser_traits<first_t::is_single && second_t::is_single>
@@ -125,12 +127,21 @@ namespace parse
         {
         }
 
+        // This should be called for general parsers
         template <typename iterator_t>
         bool parse_internal(iterator_t& start, iterator_t& end, typename ast<iterator_t>::type& tree)
         {
             return
                 first.parse_from(start, end, tree.first) ||
                 second.parse_from(start, end, tree.second);
+        }
+
+        // This should only be called if both first and second are single 
+        // token parsers.
+        template <typename token_t>
+        bool match(token_t t)
+        {
+            return first.match(t) || second.match(t);
         }
     };
 
@@ -406,10 +417,11 @@ namespace parse
 
     // This should probably go in the tree namespace.  This is defined here, 
     // as opposed to being a nested struct in the reference class, as the 
-    // alternative proceduces a self-referring template.  It is believed this 
-    // fails because it can't refer to itself while it is being compiled.  
-    // Using a separate template (non-nested) allows the reference class to
-    // reference itself without instanciating itself.
+    // alternative proceduces a self-instanciating template.  I suppose when
+    // tries to instanciate itself (while being instanciated), things fail
+    // because some members haven't been created yet (as it hasn't completely
+    // instanciated).  Using a separate template (non-nested) allows the 
+    // reference class to reference itself without instanciating itself.
     template <typename parser_t, typename iterator_t>
     struct reference_ast : public tree::ast_base<iterator_t>
     {
@@ -473,12 +485,6 @@ namespace parse
         repetition<parser_t, 1> operator+ (const parser_t& parser)
         {
             return repetition<parser_t, 1>(parser);
-        }
-
-        template <typename parser_t, typename token_t>
-        complement< parser_t, token_t > operator~ (const single<parser_t, token_t>& parser)
-        {
-            return complement< parser_t, token_t >(parser);
         }
 
         template <typename parser_t>
