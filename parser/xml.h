@@ -253,11 +253,20 @@ namespace xml
             parser::element_content parser;
             if (!parser.parse_from(content_start, end, content_ast)) throw std::exception("parse error");
             std::string content;
-
+            /*
             for (auto child = content_ast.children.begin();
                 child != content_ast.children.end(); child++)
             {
-                if ((*child)[_1].matched) content += get_string((*child)[_1]);
+                auto& c = *child;
+                auto& text_ast = c[_1];
+                if (text_ast.matched) content += get_string(text_ast);
+            }
+            */
+            for (size_t i = 0; i < content_ast.children.size(); i++)
+            {
+                auto& c = content_ast.children[i];
+                auto& text_ast = c[_1];
+                if (text_ast.matched) content += get_string(c);
             }
             return content;
         }

@@ -209,14 +209,17 @@ namespace parse
         template <typename iterator_t, typename ast_t>
         bool parse_internal(iterator_t& start, iterator_t& end, ast_t& ast)
         {
-            typename ast_type<parser_t, iterator_t>::type elem_tree;
-            while (start != end && elem.parse_from(start, end, elem_tree))
+            while (start != end)
             {
-                ast.children.push_back(elem_tree);
+                typename ast_type<parser_t, iterator_t>::type elem_tree;
+
+                if (!elem.parse_from(start, end, elem_tree)) break;
 
                 // This is neccessary to prevent endless looping when a 
                 // parser_t can have a valid, zero-length match.
                 if (elem_tree.start == elem_tree.end) break;
+
+                ast.children.push_back(elem_tree);
             }
             return true;
         }

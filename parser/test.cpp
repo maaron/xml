@@ -73,11 +73,11 @@ int _tmain(int argc, _TCHAR* argv[])
     // XML reader test
     
     // UTF-8 encoding
-    //std::string xml_data("\xEF\xBB\xBF<?xml encoding='UTF-8'?><nspre:root attribute1=\"value1\"><ns:child1>child1 content<grandchild11></grandchild11></ns:child1><child2>child2 content</child2></nspre:root>");
+    std::string xml_data("\xEF\xBB\xBF<?xml encoding='UTF-8'?><nspre:root attribute1=\"value1\">root content part 1<ns:child1>child1 content<grandchild11></grandchild11></ns:child1><child2>child2 content</child2></nspre:root>");
     
     // UTF-16 encoding
-    std::wstring wxml_data(L"\uFEFF<?xml encoding='UTF-8'?><nspre:root attribute1=\"value1\"><ns:child1>child1 content<grandchild11></grandchild11></ns:child1><child2>child2 content</child2></nspre:root>");
-    std::string xml_data((const char*)wxml_data.c_str(), wxml_data.size() * 2);
+    //std::wstring wxml_data(L"\uFEFF<?xml encoding='UTF-8'?><nspre:root attribute1=\"value1\">root content part 1<ns:child1>child1 content<grandchild11></grandchild11></ns:child1><child2>child2 content</child2></nspre:root>");
+    //std::string xml_data((const char*)wxml_data.c_str(), wxml_data.size() * 2);
 
     xml::document<std::string> doc(xml_data);
 
