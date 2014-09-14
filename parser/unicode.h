@@ -6,6 +6,8 @@
 
 namespace unicode
 {
+    template <typename T>
+    struct always_false { enum { value = false }; };
 
     template <typename octet_iterator, bool little_endian>
     class char16_iterator : public std::iterator <std::bidirectional_iterator_tag, char16_t>
@@ -289,11 +291,18 @@ namespace unicode
 
     enum encoding { utf8, utf16le, utf16be, utf32le, utf32be };
 
+    template <typename octet_iterator, typename enable = void>
+    class unicode_iterator
+    {
+        static_assert(always_false<octet_iterator>::value, "unicode_iterator doesn't support the specified container type.");
+    };
+
     // This class implements an iterator that wraps an octet-based (char) 
     // iterator and a specified UTF encoding.  The resulting object then iterates
     // unicode characters (char32_t).
     template <typename octet_iterator>
-    class unicode_iterator : public std::iterator<std::forward_iterator_tag, char32_t>
+    class unicode_iterator<octet_iterator, typename std::enable_if<sizeof(typename octet_iterator::value_type) == sizeof(char)>::type>
+        : public std::iterator<std::forward_iterator_tag, char32_t>
     {
         octet_iterator current;
         octet_iterator next;
@@ -404,6 +413,81 @@ namespace unicode
         }
     };
 
+    // This class is the same as above, but appropriate for wchar_t/char16_t iterators.
+    template <typename wchar_iterator>
+    class unicode_iterator<wchar_iterator, typename std::enable_if<sizeof(typename wchar_iterator::value_type) == sizeof(char16_t)>::type>
+        : public std::iterator<std::forward_iterator_tag, char32_t>
+    {
+        wchar_iterator current;
+        wchar_iterator next;
+        wchar_iterator end;
+        value_type c;
+
+    public:
+        unicode_iterator()
+        {
+        }
+
+        explicit unicode_iterator(const wchar_iterator& from, const wchar_iterator& to) : current(from), next(from), end(to)
+        {
+            get();
+        }
+
+        value_type operator * () const
+        {
+            return c;
+        }
+
+        bool operator == (const unicode_iterator& rhs) const
+        {
+            return (current == rhs.current);
+        }
+
+        bool operator != (const unicode_iterator& rhs) const
+        {
+            return !(operator == (rhs));
+        }
+
+        unicode_iterator& operator ++ ()
+        {
+            if (current != end)
+            {
+                get();
+            }
+            return *this;
+        }
+
+        unicode_iterator operator ++ (int)
+        {
+            unicode_iterator temp(*this);
+            if (current != end)
+            {
+                get();
+            }
+            return temp;
+        }
+
+    private:
+        void get()
+        {
+            current = next;
+
+            if (current == end)
+            {
+                c = std::char_traits<value_type>::eof();
+                return;
+            }
+
+            c = utf8::utf16::next(next, end);
+        }
+    };
+
+    template <typename octet_container, typename Enable = void>
+    class unicode_container
+    {
+        static_assert(always_false<octet_container>::value, "unicode_container doesn't support the specified container type.");
+    };
+
     // This class implements a container that wraps other STL-style containers 
     // with begin()/end() methods that return iterators.  The wrapped container
     // must contain single byte elements (i.e., char) type.  Examples of such 
@@ -414,7 +498,7 @@ namespace unicode
     // The value_type for the iterator is char32_t, which is large enough to hold
     // any unicode character.
     template <typename octet_container>
-    class unicode_container
+    class unicode_container<octet_container, typename std::enable_if<sizeof(typename octet_container::value_type) == sizeof(char)>::type>
     {
         typedef typename octet_container::iterator octet_iterator;
 
@@ -453,14 +537,44 @@ namespace unicode
             detect_encoding();
         }
 
-        unicode_iterator<octet_iterator> begin()
+        iterator begin()
         {
-            return unicode_iterator<octet_iterator>(octets.begin() + bom_size, octets.end(), enc);
+            return iterator(octets.begin() + bom_size, octets.end(), enc);
         }
 
-        unicode_iterator<octet_iterator> end()
+        iterator end()
         {
-            return unicode_iterator<octet_iterator>(octets.end(), octets.end(), enc);
+            return iterator(octets.end(), octets.end(), enc);
+        }
+    };
+
+    // This class does the same as the one above, but appropriate for 
+    // containers that have 2-byte value types.  It assumes that each 2-byte 
+    // value is a UTF-16 encoded character.  This is mainly useful in cases 
+    // where the user is dealing with a std::wstring (or wchar_t/char16_t 
+    // array, etc), where there normally won't be any BOM.
+    template <typename wchar_container>
+    class unicode_container<wchar_container, typename std::enable_if<sizeof(typename wchar_container::value_type) == sizeof(char16_t)>::type>
+    {
+        typedef typename wchar_container::iterator wchar_iterator;
+        
+        wchar_container& container;
+
+    public:
+        typedef unicode_iterator<wchar_iterator> iterator;
+
+        unicode_container(wchar_container& c) : container(c)
+        {
+        }
+
+        iterator begin()
+        {
+            return iterator(container.begin(), container.end());
+        }
+
+        iterator end()
+        {
+            return iterator(container.end(), container.end());
         }
     };
 

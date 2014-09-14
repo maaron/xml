@@ -153,8 +153,11 @@ int _tmain(int argc, _TCHAR* argv[])
     //std::wstring wxml_data(L"\uFEFF<?xml encoding='UTF-8'?><nspre:root attribute1=\"value1\">root content part 1<ns:child1>child1 content<grandchild11></grandchild11></ns:child1><child2>child2 content</child2></nspre:root>");
     //std::string xml_data((const char*)wxml_data.c_str(), wxml_data.size() * 2);
 
+    // UTF-16 native string
+    //std::wstring xml_data(L"<?xml encoding='UTF-8'?><nspre:root attribute1=\"value1\">root content part 1<ns:child1>child1 content<grandchild11></grandchild11></ns:child1><child2>child2 content</child2></nspre:root>");
+
     // Some typedefs for convenience
-    typedef xml::document<std::string> document;
+    typedef xml::document<decltype(xml_data)> document;
     typedef document::element_type element;
     typedef element::attribute_type attribute;
 
@@ -186,8 +189,6 @@ int _tmain(int argc, _TCHAR* argv[])
     {
         std::cout << "child element: " << e.name() << std::endl;
     });
-
-    //custom_ast_test::foo();
 
     return 0;
 }
