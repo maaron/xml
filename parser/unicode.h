@@ -295,8 +295,8 @@ namespace unicode
     template <typename octet_iterator>
     class unicode_iterator : public std::iterator<std::forward_iterator_tag, char32_t>
     {
-        octet_iterator it;
-        octet_iterator start;
+        octet_iterator current;
+        octet_iterator next;
         octet_iterator end;
         value_type c;
         encoding enc;
@@ -308,7 +308,7 @@ namespace unicode
         {
         }
 
-        explicit unicode_iterator (const octet_iterator& from, const octet_iterator& to, encoding e) : it(from), start(from), end(to), enc(e)
+        explicit unicode_iterator (const octet_iterator& from, const octet_iterator& to, encoding e) : current(from), next(from), end(to), enc(e)
         {
             get();
         }
@@ -320,7 +320,7 @@ namespace unicode
 
         bool operator == (const unicode_iterator& rhs) const 
         { 
-            return (it == rhs.it);
+            return (current == rhs.current);
         }
 
         bool operator != (const unicode_iterator& rhs) const
@@ -330,7 +330,7 @@ namespace unicode
 
         unicode_iterator& operator ++ () 
         {
-            if (it != end)
+            if (current != end)
             {
                 get();
             }
@@ -340,7 +340,7 @@ namespace unicode
         unicode_iterator operator ++ (int)
         {
             unicode_iterator temp(*this);
-            if (it != end)
+            if (current != end)
             {
                 get();
             }
@@ -350,45 +350,51 @@ namespace unicode
     private:
         void get()
         {
-            if (it == end) return;
+            current = next;
+
+            if (current == end)
+            {
+                c = std::char_traits<value_type>::eof();
+                return;
+            }
 
             switch (enc)
             {
             case utf8:
-                c = utf8::next(it, end);
+                c = utf8::next(next, end);
                 break;
 
             case utf16le:
                 {
-                    unicode::char16_iterator<decltype(it), true> it16(it, end);
-                    unicode::char16_iterator<decltype(it), true> end16(end, end);
+                    unicode::char16_iterator<decltype(next), true> it16(next, end);
+                    unicode::char16_iterator<decltype(next), true> end16(end, end);
                     c = utf8::utf16::next(it16, end16);
-                    it = it16.base();
+                    next = it16.base();
                 }
                 break;
 
             case utf16be:
                 {
-                    unicode::char16_iterator<decltype(it), false> it16(it, end);
-                    unicode::char16_iterator<decltype(it), false> end16(end, end);
+                    unicode::char16_iterator<decltype(next), false> it16(next, end);
+                    unicode::char16_iterator<decltype(next), false> end16(end, end);
                     c = utf8::utf16::next(it16, end16);
-                    it = it16.base();
+                    next = it16.base();
                 }
                 break;
 
             case utf32le:
                 {
-                    unicode::char32_iterator<decltype(it), true> it32(it, end);
+                    unicode::char32_iterator<decltype(next), true> it32(next, end);
                     c = *it32++;
-                    it = it32.base();
+                    next = it32.base();
                 }
                 break;
 
             case utf32be:
                 {
-                    unicode::char32_iterator<decltype(it), false> it32(it, end);
+                    unicode::char32_iterator<decltype(next), false> it32(next, end);
                     c = *it32++;
-                    it = it32.base();
+                    next = it32.base();
                 }
                 break;
 

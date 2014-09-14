@@ -20,15 +20,6 @@ namespace parse
         static const bool is_single = single;
     };
       
-    template <bool single, template <typename> class ast_t>
-    struct parser_traits2
-    {
-        static const bool is_single = single;
-
-        template <typename iterator_t>
-        struct ast { typedef typename ast_t<iterator_t>::type type; };
-    };
-
     // Base class for all parsers.  The main method, parse(stream_t&, ast&) 
     // tracks the start and end positions of the underlying parser's match, and 
     // updates the AST accordingly.
@@ -305,7 +296,7 @@ namespace parse
         template <typename iterator_t>
         bool parse_internal(iterator_t& start, iterator_t& end, typename ast<iterator_t>::type& tree)
         {
-            parser.parse_from(start, end, tree.option);
+            if (start != end) parser.parse_from(start, end, tree.option);
             return true;
         }
     };

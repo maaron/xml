@@ -426,12 +426,4 @@ namespace xml
 		}
 	};
 
-    template <typename octet_container>
-    struct defs
-    {
-        typedef xml::document<octet_container> document;
-        typedef typename document::element_type element;
-        typedef typename element::attribute_type attribute;
-    };
-
 }
