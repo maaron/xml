@@ -37,7 +37,31 @@ namespace xml
 
 		auto name = alpha() >> *(alpha() | digit());
 
-		auto qname = !(group(name) >> colon) >> name;
+		typedef decltype(!(group(name) >> colon) >> name) qname_t;
+        struct qname : qname_t
+        {
+            template <typename iterator_t>
+            struct ast : qname_t::ast<iterator_t>::type
+            {
+                typedef ast type;
+
+                std::string prefix()
+                {
+                    return (*this)[_0].option ?
+                        get_string((*this)[_0][_0]) : "";
+                }
+
+                std::string name()
+                {
+                    return get_string(*this);
+                }
+
+                std::string local_name()
+                {
+                    return get_string((*this)[_1]);
+                }
+            };
+        };
 
 		auto ws = +(space | tab | cr | lf);
 
@@ -45,15 +69,48 @@ namespace xml
 
         auto content_char = ~(lt | gt);
 		
-		typedef decltype((squote >> *(~squote) >> squote) | (dquote >> *(~dquote) >> dquote)) qstring;
+		typedef decltype((squote >> *(~squote) >> squote) | (dquote >> *(~dquote) >> dquote)) qstring_t;
+        struct qstring : qstring_t
+        {
+            template <typename iterator_t>
+            struct ast : qstring_t::ast<iterator_t>::type
+            {
+                typedef ast type;
 
-		typedef decltype(group(qname) >> eq >> qstring()) attribute;
+                std::string value()
+                {
+                    if ((*this)[_0].matched) return get_string((*this)[_0][_1]);
+                    else return get_string((*this)[_1][_1]);
+                }
+            };
+        };
+        
+
+		typedef decltype(group(qname()) >> eq >> qstring()) attribute_t;
+        struct attribute : attribute_t
+        {
+            template <typename iterator_t>
+            struct ast : attribute_t::ast<iterator_t>::type
+            {
+                typedef ast type;
+
+                typename qstring::ast<iterator_t>::type qstring()
+                {
+                    return (*this)[_2];
+                }
+
+                typename qname::ast<iterator_t>::type& key()
+                {
+                    return (*this)[_0].group;
+                }
+            };
+        };
 
 		typedef decltype(ws >> +(attribute())) attribute_list;
 
-		typedef decltype(lt >> qname >> !attribute_list() >> gt) element_open;
+		typedef decltype(lt >> qname() >> !attribute_list() >> gt) element_open;
 
-		typedef decltype(lt >> fslash >> qname >> gt) element_close;
+		typedef decltype(lt >> fslash >> qname() >> gt) element_close;
 
 		struct element;
 
@@ -65,11 +122,9 @@ namespace xml
 
         typedef decltype(*(childnode())) element_content;
 
-        typedef decltype(lt >> group(qname) >> !attribute_list() >> ((fslash >> gt) | (gt >> element_content() >> element_close()))) element_base;
+        typedef decltype(lt >> group(qname()) >> !attribute_list() >> ((fslash >> gt) | (gt >> element_content() >> element_close()))) element_base;
 		
-		struct element : public element_base
-        {
-        };
+		struct element : public element_base {};
 
 		typedef decltype(!ws >> lt >> qmark >> *(~qmark) >> qmark >> gt >> !ws) prolog;
 
@@ -80,7 +135,7 @@ namespace xml
 
 	}
 
-	template <typename octet_container>
+    template <typename container>
     class document;
 
     template <typename unicode_iterator>
@@ -108,26 +163,22 @@ namespace xml
 
         std::string name()
         {
-            return get_string(ast[_0]);
+            return ast.key().name();
         }
 
         std::string local_name()
 		{
-			return get_string(ast[_0][_1]);
+			return ast.key().local_name()
 		}
 
         std::string prefix()
         {
-            auto& pre = ast[_0][_0].option[_0];
-            return pre.matched ? get_string(pre) : "";
+            return ast.key().prefix();
         }
 
         std::string value()
         {
-            auto& qstr = ast[_2];
-            return qstr[_0].matched ? 
-                get_string(qstr[_0][_1]) :
-                get_string(qstr[_1][_1]);
+            return ast.qstring().value();
         }
     };
 
@@ -371,10 +422,10 @@ namespace xml
         }
 	};
 
-	template <typename octet_container>
+	template <typename container>
     class document
 	{
-        typedef typename unicode::unicode_container<octet_container> unicode_container;
+        typedef typename unicode::unicode_container<container> unicode_container;
 	    typedef typename unicode_container::iterator unicode_iterator;
         typedef typename parse::ast_type<parser::document, unicode_iterator>::type ast_type;
 
@@ -384,7 +435,7 @@ namespace xml
 	public:
         typedef element<unicode_iterator> element_type;
 
-		document(octet_container& c) : data(c)
+        document(container& c) : data(c)
 		{
 			parser::document p;
 			if (!p.parse(data, ast)) throw parse_error();
@@ -396,4 +447,9 @@ namespace xml
 		}
 	};
 
+    template <typename container>
+    document<container> parse(container& c)
+    {
+        return document<container>(c);
+    }
 }

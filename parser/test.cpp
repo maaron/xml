@@ -13,6 +13,7 @@
 #include <iostream>
 #include <algorithm>
 
+#include "stream_container.h"
 #include "parse.h"
 #include "xml.h"
 
@@ -27,26 +28,22 @@
 // A downside to this method is that we seem to get some strange errors in 
 // xlocnum.h, associated with bringing the parse::operators namespace in to 
 // scope alongside the accessors.
+
 namespace custom_ast_test
 {
     using namespace parse::terminals;
+    using namespace parse::operators;
 
     static u<'1'> uone;
     static u<'2'> utwo;
     static u<'3'> uthree;
 
-    namespace expressions
-    {
-        using namespace parse::operators;
+    typedef decltype(uone >> utwo >> uthree) base_t;
 
-    //typedef parse::sequence<parse::sequence<u<'1'>, u<'2'> >, u<'3'> > base_t;
-        typedef decltype(uone >> utwo >> uthree) base_t;
-    }
-
-    struct parser_t : public expressions::base_t
+    struct parser_t : public base_t
     {
         template <typename iterator_t>
-        struct ast : public parse::ast_type<expressions::base_t, iterator_t>::type
+        struct ast : public parse::ast_type<base_t, iterator_t>::type
         {
             typedef ast type;
             
@@ -67,17 +64,12 @@ namespace custom_ast_test
         };
     };
 
-    namespace expressions
-    {
-        using namespace parse::operators;
+    typedef decltype(utwo >> uthree >> parser_t()) base2_t;
 
-        typedef decltype(utwo >> uthree >> parser_t()) base2_t;
-    }
-
-    struct parser2_t : public expressions::base2_t
+    struct parser2_t : public base2_t
     {
         template <typename iterator_t>
-        struct ast : public expressions::base2_t::ast<iterator_t>::type
+        struct ast : public base2_t::ast<iterator_t>::type
         {
             typedef ast type;
             
@@ -154,8 +146,12 @@ int _tmain(int argc, _TCHAR* argv[])
     //std::string xml_data((const char*)wxml_data.c_str(), wxml_data.size() * 2);
 
     // UTF-16 native string (with and without BOM)
-    std::wstring xml_data(L"<?xml encoding='UTF-8'?><nspre:root attribute1=\"value1\">root content part 1<ns:child1>child1 content<grandchild11/></ns:child1><child2>child2 content</child2></nspre:root>");
+    //std::wstring xml_data(L"<?xml encoding='UTF-8'?><nspre:root attribute1=\"value1\">root content part 1<ns:child1>child1 content<grandchild11/></ns:child1><child2>child2 content</child2></nspre:root>");
     //std::wstring xml_data(L"\uFFFE<?xml encoding='UTF-8'?><nspre:root attribute1=\"value1\">root content part 1<ns:child1>child1 content<grandchild11></grandchild11></ns:child1><child2>child2 content</child2></nspre:root>");
+
+    // Stream parsing
+    std::stringstream stream_data("<?xml encoding='UTF-8'?><nspre:root attribute1=\"value1\">root content part 1<ns:child1>child1 content<grandchild11/></ns:child1><child2>child2 content</child2></nspre:root>");
+    util::streambuf_container<std::streambuf> xml_data(stream_data.rdbuf());
 
     // Some typedefs for convenience
     typedef xml::document<decltype(xml_data)> document;
@@ -203,4 +199,3 @@ int _tmain(int argc, _TCHAR* argv[])
 
     return 0;
 }
-

@@ -44,5 +44,11 @@
     <ClInclude Include="xml.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="stream_container.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="util.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

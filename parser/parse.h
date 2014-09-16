@@ -14,10 +14,13 @@ namespace parse
         typedef typename parser_t::template ast<iterator_t>::type type;
     };
 
+    struct parser_tag {};
+
     template <bool single>
     struct parser_traits
     {
         static const bool is_single = single;
+        typedef parser_tag tag;
     };
       
     // Base class for all parsers.  The main method, parse(stream_t&, ast&) 
@@ -493,37 +496,45 @@ namespace parse
     {
         // Generates an alternate<first_t, second_t> parser
         template <typename first_t, typename second_t>
-        alternate<first_t, second_t> operator| (const first_t& first, const second_t& second)
+        typename std::enable_if<std::is_same<parser_tag, typename first_t::tag>::value, alternate<first_t, second_t> >::type
+        operator| (const first_t& first, const second_t& second)
         {
             return alternate<first_t, second_t>(first, second);
         }
 
         // Generates a sequence<first_t, second_t> parser
         template <typename first_t, typename second_t>
-        sequence<first_t, second_t> operator>> (const first_t& first, const second_t& second)
+        typename std::enable_if<std::is_same<parser_tag, typename first_t::tag>::value, sequence<first_t, second_t> >::type
+        operator>> (const first_t& first, const second_t& second)
         {
             return sequence<first_t, second_t>(first, second);
         }
 
         // Generates a zero_or_more<parser_t> parser
         template <typename parser_t>
-        zero_or_more<parser_t> operator* (parser_t& parser)
+        typename std::enable_if<std::is_same<parser_tag, typename parser_t::tag>::value, zero_or_more<parser_t> >::type
+        operator* (parser_t& parser)
         {
             return zero_or_more<parser_t>(parser);
         }
 
+        // Generates an optional parser
         template <typename parser_t>
-        optional<parser_t> operator! (const parser_t& parser)
+        typename std::enable_if<std::is_same<parser_tag, typename parser_t::tag>::value, optional<parser_t> >::type
+        operator! (const parser_t& parser)
         {
             return optional<parser_t>(parser);
         }
 
+        // Generates a "one or more" (repetition<parser_t, 1>) parser
         template <typename parser_t>
-        repetition<parser_t, 1> operator+ (const parser_t& parser)
+        typename std::enable_if<std::is_same<parser_tag, typename parser_t::tag>::value, repetition<parser_t, 1> >::type
+        operator+ (const parser_t& parser)
         {
             return repetition<parser_t, 1>(parser);
         }
 
+        // Generates a complement parser (only for single-token sub-parsers)
         template <typename parser_t>
         typename std::enable_if<parser_t::is_single, complement< parser_t, typename parser_t::token_type > >::type
             operator~ (const parser_t& parser)

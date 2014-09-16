@@ -2,16 +2,11 @@
 
 #include <iterator>
 #include <type_traits>
+#include "util.h"
 #include "utf8.h"
 
 namespace unicode
 {
-    // Template constant that always evaluates to false.  Useful for 
-    // static_assert's that shouldn't fire unless the containing template is 
-    // instanciated.
-    template <typename T>
-    struct always_false { enum { value = false }; };
-
     // This class takes an octet_iterator (with an 8-bit value_type, i.e., 
     // char), and converts it into a 16-bit iterator with the specified 
     // endianness.
@@ -306,7 +301,7 @@ namespace unicode
     template <typename octet_iterator, typename enable = void>
     class unicode_iterator
     {
-        static_assert(always_false<octet_iterator>::value, "unicode_iterator doesn't support the specified container type.");
+        static_assert(util::always_false<octet_iterator>::value, "unicode_iterator doesn't support the specified container type.");
     };
 
     // This class implements an iterator that wraps an octet-based (char) 
@@ -501,7 +496,7 @@ namespace unicode
     template <typename octet_container, typename Enable = void>
     class unicode_container
     {
-        static_assert(always_false<octet_container>::value, "unicode_container doesn't support the specified container type.");
+        static_assert(util::always_false<octet_container>::value, "unicode_container doesn't support the specified container type.");
     };
 
     // This class implements a container that wraps other STL-style containers 
