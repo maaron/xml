@@ -16,8 +16,9 @@ namespace parse
 			iterator_t start;
 			iterator_t end;
 			bool matched;
+            bool parsed;
 
-			ast_base() : matched(false)
+			ast_base() : matched(false), parsed(false)
 			{
 			}
 

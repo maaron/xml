@@ -36,10 +36,12 @@ namespace parse
             {
                 ast.start = start;
                 start = ast.end = matchEnd;
+                ast.parsed = true;
                 return (ast.matched = true);
             }
             else
             {
+                ast.parsed = true;
                 return (ast.matched = false);
             }
         }
@@ -200,7 +202,8 @@ namespace parse
         struct ast : public tree::ast_base<iterator_t>
         {
             typedef ast type;
-            std::vector<typename ast_type<parser_t, iterator_t>::type> matches;
+            typedef std::vector< typename ast_type<parser_t, iterator_t>::type > container_type;
+            container_type matches;
         };
 
         template <typename iterator_t, typename ast_t>
@@ -428,13 +431,15 @@ namespace parse
         std::shared_ptr<typename parser_t::template ast<iterator_t>::type> ptr;
     };
 
+    // This parser is used to make recursive parsers that refer to 
+    // themselves, either directly or via some other sub-parser.
     template <typename parser_t>
     class reference : public parser< reference<parser_t> >,
         public parser_traits<false>
     {
     public:
         template <typename iterator_t>
-        struct ast : public tree::ast_base<iterator_t>
+        struct ast
         {
             typedef reference_ast<parser_t, iterator_t> type;
         };
@@ -446,6 +451,38 @@ namespace parse
             parser_t parser;
             tree.ptr.reset(new p_tree());
             return parser.parse_from(start, end, *tree.ptr);
+        }
+    };
+
+    // This parser matches only if the first_t parser matches and the 
+    // second_t doesn't (from the same location).  This could potentially be
+    // expanded to support single token parsing, but doesn't currently.
+    template <typename first_t, typename second_t>
+    struct difference 
+        : public parser< difference<first_t, second_t> >,
+        public parser_traits<false>
+    {
+        first_t first;
+        second_t second;
+
+    public:
+        template <typename iterator_t>
+        struct ast
+        {
+            typedef typename first_t::ast<iterator_t>::type type;
+        };
+
+        difference(const first_t& f, const second_t& s) : first(f), second(s) {}
+
+        template <typename iterator_t>
+        bool parse_internal(iterator_t& start, iterator_t& end, typename ast<iterator_t>::type& tree)
+        {
+            iterator_t tmp = start;
+            typename second_t::ast<iterator_t>::type second_tree;
+            
+            return 
+                first.parse_from(start, end, tree) && 
+                !second.parse_from(tmp, end, second_tree);
         }
     };
 
@@ -494,8 +531,17 @@ namespace parse
             return complement< parser_t, typename parser_t::token_type >(parser);
         }
 
+        template <typename first_t, typename second_t>
+        difference<first_t, second_t> operator- (const first_t& f, const second_t& s)
+        {
+            return difference<first_t, second_t>(f, s);
+        }
+
         // This is obviously not a c++ operator, but is included here since 
-        // it is intended to be used in operator expressions.
+        // it is intended to be used in operator expressions.  The purpose of 
+        // this is to group expressions like "(a >> b) >> c", which have no
+        // difference from "a >> b >> c".  Using this function, "a >> b" can
+        // be grouped like this: "group(a >> b) >> c".
         template <typename parser_t>
         grouped<parser_t> group(const parser_t& p)
         {

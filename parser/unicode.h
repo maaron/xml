@@ -6,9 +6,15 @@
 
 namespace unicode
 {
+    // Template constant that always evaluates to false.  Useful for 
+    // static_assert's that shouldn't fire unless the containing template is 
+    // instanciated.
     template <typename T>
     struct always_false { enum { value = false }; };
 
+    // This class takes an octet_iterator (with an 8-bit value_type, i.e., 
+    // char), and converts it into a 16-bit iterator with the specified 
+    // endianness.
     template <typename octet_iterator, bool little_endian>
     class char16_iterator : public std::iterator <std::bidirectional_iterator_tag, char16_t>
     { 
@@ -115,6 +121,8 @@ namespace unicode
 
     };
 
+    // This class converts a container with an 8-bit (char) value_type into 
+    // one with a 16-bit value_type.
     template <typename octet_container, bool little_endian>
     class char16_container
     {
@@ -138,6 +146,7 @@ namespace unicode
         }
     };
 
+    // This class converts an 8-bit iterator (char) into a 32-bit iterator.
     template <typename octet_iterator, bool little_endian>
     class char32_iterator : public std::iterator <std::bidirectional_iterator_tag, char32_t>
     { 
@@ -243,6 +252,8 @@ namespace unicode
 
     };
 
+    // This class converts a container with an 8-bit (char) value_type info 
+    // one with a 32-bit value_type.
     template <typename octet_container, bool little_endian>
     class char32_container
     {
@@ -289,6 +300,7 @@ namespace unicode
         return (sub_it == sub_end);
     }
 
+    // UTF encodings supported by unicode_iterator
     enum encoding { utf8, utf16le, utf16be, utf32le, utf32be };
 
     template <typename octet_iterator, typename enable = void>
@@ -310,8 +322,6 @@ namespace unicode
         value_type c;
         encoding enc;
 
-        static_assert(sizeof(typename octet_iterator::value_type) == 1, "Illegal value_type size for octet iterator");
-    
     public:
         unicode_iterator()
         {
@@ -413,7 +423,8 @@ namespace unicode
         }
     };
 
-    // This class is the same as above, but appropriate for wchar_t/char16_t iterators.
+    // This class is the same as above, but appropriate for wchar_t/char16_t 
+    // iterators.  It is used in conjunction with the wchar_t unicode_iterator.
     template <typename wchar_iterator>
     class unicode_iterator<wchar_iterator, typename std::enable_if<sizeof(typename wchar_iterator::value_type) == sizeof(char16_t)>::type>
         : public std::iterator<std::forward_iterator_tag, char32_t>
@@ -422,13 +433,14 @@ namespace unicode
         wchar_iterator next;
         wchar_iterator end;
         value_type c;
+        bool swap_bytes;
 
     public:
-        unicode_iterator()
+        unicode_iterator() : swap_bytes(false), c(std::char_traits<value_type>::eof())
         {
         }
 
-        explicit unicode_iterator(const wchar_iterator& from, const wchar_iterator& to) : current(from), next(from), end(to)
+        explicit unicode_iterator(const wchar_iterator& from, const wchar_iterator& to, bool swap) : current(from), next(from), end(to), swap_bytes(swap)
         {
             get();
         }
@@ -479,6 +491,10 @@ namespace unicode
             }
 
             c = utf8::utf16::next(next, end);
+
+            if (swap_bytes) c =
+                ((c >> 8) & 0x00FF) |
+                ((c << 8) & 0xFF00);
         }
     };
 
@@ -518,10 +534,10 @@ namespace unicode
         {
             if (!(
                 try_encoding<utf8>("\xEF\xBB\xBF", 3) ||
-                try_encoding<utf32le>("\xFF\xFE\x00\x00", 4) ||
-                try_encoding<utf32be>("\x00\x00\xFF\xFE", 4) ||
-                try_encoding<utf16le>("\xFF\xFE", 2) ||
-                try_encoding<utf16be>("\xFE\xFF", 2)))
+                try_encoding<utf32be>("\xFF\xFE\x00\x00", 4) ||
+                try_encoding<utf32le>("\x00\x00\xFE\xFF", 4) ||
+                try_encoding<utf16be>("\xFF\xFE", 2) ||
+                try_encoding<utf16le>("\xFE\xFF", 2)))
             {
                 // No BOM present, assume UTF-8.  This will also work for ASCII.
                 enc = utf8;
@@ -552,29 +568,51 @@ namespace unicode
     // containers that have 2-byte value types.  It assumes that each 2-byte 
     // value is a UTF-16 encoded character.  This is mainly useful in cases 
     // where the user is dealing with a std::wstring (or wchar_t/char16_t 
-    // array, etc), where there normally won't be any BOM.
+    // array, etc).  Currently, this class doesn't support UTF-32.
     template <typename wchar_container>
     class unicode_container<wchar_container, typename std::enable_if<sizeof(typename wchar_container::value_type) == sizeof(char16_t)>::type>
     {
         typedef typename wchar_container::iterator wchar_iterator;
         
         wchar_container& container;
+        size_t bom_size;
+        bool swap_bytes;
+
+        void detect_encoding()
+        {
+            if (starts_with(container, std::wstring(L"\uFEFF", 1)))
+            {
+                swap_bytes = true;
+                size_t bom_size = 1;
+            }
+            else if (starts_with(container, std::wstring(L"\uFFFE", 1)))
+            {
+                swap_bytes = false;
+                bom_size = 1;
+            }
+            else
+            {
+                swap_bytes = false;
+                bom_size = 0;
+            }
+        }
 
     public:
         typedef unicode_iterator<wchar_iterator> iterator;
 
         unicode_container(wchar_container& c) : container(c)
         {
+            detect_encoding();
         }
 
         iterator begin()
         {
-            return iterator(container.begin(), container.end());
+            return iterator(container.begin() + bom_size, container.end(), swap_bytes);
         }
 
         iterator end()
         {
-            return iterator(container.end(), container.end());
+            return iterator(container.end(), container.end(), swap_bytes);
         }
     };
 

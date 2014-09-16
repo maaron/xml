@@ -147,25 +147,21 @@ int _tmain(int argc, _TCHAR* argv[])
     // XML reader test
 
     // UTF-8 encoding
-    std::string xml_data("\xEF\xBB\xBF<?xml encoding='UTF-8'?><nspre:root attribute1=\"value1\">root content part 1<ns:child1>child1 content<grandchild11></grandchild11></ns:child1><child2>child2 content</child2></nspre:root>");
+    //std::string xml_data("\xEF\xBB\xBF<?xml encoding='UTF-8'?><nspre:root attribute1=\"value1\">root content part 1<ns:child1>child1 content<grandchild11></grandchild11></ns:child1><child2>child2 content</child2></nspre:root>");
     
     // UTF-16 encoding
-    //std::wstring wxml_data(L"\uFEFF<?xml encoding='UTF-8'?><nspre:root attribute1=\"value1\">root content part 1<ns:child1>child1 content<grandchild11></grandchild11></ns:child1><child2>child2 content</child2></nspre:root>");
+    //std::wstring wxml_data(L"\uFFFE<?xml encoding='UTF-8'?><nspre:root attribute1=\"value1\">root content part 1<ns:child1>child1 content<grandchild11></grandchild11></ns:child1><child2>child2 content</child2></nspre:root>");
     //std::string xml_data((const char*)wxml_data.c_str(), wxml_data.size() * 2);
 
-    // UTF-16 native string
-    //std::wstring xml_data(L"<?xml encoding='UTF-8'?><nspre:root attribute1=\"value1\">root content part 1<ns:child1>child1 content<grandchild11></grandchild11></ns:child1><child2>child2 content</child2></nspre:root>");
+    // UTF-16 native string (with and without BOM)
+    std::wstring xml_data(L"<?xml encoding='UTF-8'?><nspre:root attribute1=\"value1\">root content part 1<ns:child1>child1 content<grandchild11/></ns:child1><child2>child2 content</child2></nspre:root>");
+    //std::wstring xml_data(L"\uFFFE<?xml encoding='UTF-8'?><nspre:root attribute1=\"value1\">root content part 1<ns:child1>child1 content<grandchild11></grandchild11></ns:child1><child2>child2 content</child2></nspre:root>");
 
     // Some typedefs for convenience
     typedef xml::document<decltype(xml_data)> document;
     typedef document::element_type element;
     typedef element::attribute_type attribute;
 
-    std::string test_data("asdfdf</nspre:root>");
-    xml::parser::next_open p;
-    xml::parser::next_open::ast<std::string::iterator>::type ast;
-    bool valid = p.parse(test_data, ast);
-    
     document doc(xml_data);
 
     auto root = doc.root();
@@ -183,12 +179,27 @@ int _tmain(int argc, _TCHAR* argv[])
 
     auto attribute1 = root.attributes["attribute1"];
 
-    auto text = root.text();
-
     std::for_each(root.elements.begin(), root.elements.end(), [](element& e)
     {
         std::cout << "child element: " << e.name() << std::endl;
     });
+
+    auto text = root.text();
+
+    auto child = *std::find_if(root.elements.begin(), root.elements.end(), [](element& e)
+    {
+        return e.local_name() == "child1";
+    });
+
+    auto gchild = *std::find_if(child.elements.begin(), child.elements.end(), [](element& e)
+    {
+        return e.name() == "grandchild11";
+    });
+
+    auto gchild_text = gchild.text();
+    auto gchild_name = gchild.name();
+
+    auto hasAttribs = gchild.attributes.begin() != gchild.attributes.end();
 
     return 0;
 }

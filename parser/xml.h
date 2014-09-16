@@ -1,11 +1,18 @@
 #pragma once
 
+#include <assert.h>
 #include "parse.h"
 #include "unicode.h"
 
 namespace xml
 {
     using namespace util;
+
+    class parse_error : public std::exception
+    {
+    public:
+        parse_error() : std::exception("xml parse error") {}
+    };
 
     namespace parser
 	{
@@ -28,9 +35,9 @@ namespace xml
 		auto cr = u<'\r'>();
 		auto lf = u<'\n'>();
 
-		auto name = group(alpha() >> *(alpha() | digit()));
+		auto name = alpha() >> *(alpha() | digit());
 
-		auto qname = group(!(name >> colon) >> name);
+		auto qname = !(group(name) >> colon) >> name;
 
 		auto ws = +(space | tab | cr | lf);
 
@@ -40,7 +47,7 @@ namespace xml
 		
 		typedef decltype((squote >> *(~squote) >> squote) | (dquote >> *(~dquote) >> dquote)) qstring;
 
-		typedef decltype(qname >> eq >> qstring()) attribute;
+		typedef decltype(group(qname) >> eq >> qstring()) attribute;
 
 		typedef decltype(ws >> +(attribute())) attribute_list;
 
@@ -50,9 +57,15 @@ namespace xml
 
 		struct element;
 
-        typedef decltype(*(reference<element>() | *content_char)) element_content;
+        typedef reference<element> element_ref;
 
-        typedef decltype(element_open() >> element_content() >> element_close()) element_base;
+        typedef decltype(*content_char) textnode;
+
+        typedef decltype(element_ref() | textnode()) childnode;
+
+        typedef decltype(*(childnode())) element_content;
+
+        typedef decltype(lt >> group(qname) >> !attribute_list() >> ((fslash >> gt) | (gt >> element_content() >> element_close()))) element_base;
 		
 		struct element : public element_base
         {
@@ -60,8 +73,10 @@ namespace xml
 
 		typedef decltype(!ws >> lt >> qmark >> *(~qmark) >> qmark >> gt >> !ws) prolog;
 
+        typedef decltype(!prolog() >> element()) document;
+
         // This parser reads the next element open or close tag, skipping over any preceeding content
-        typedef decltype(*parser::content_char >> (parser::element_open() | parser::element_close())) next_open;
+        //typedef decltype(*parser::content_char >> (parser::element_open() | parser::element_close())) next_open;
 
 	}
 
@@ -78,24 +93,6 @@ namespace xml
         utf8::utf32to8(ast.start, ast.end, std::back_inserter(ret));
         return ret;
     }
-
-    template <typename unicode_iterator>
-    class anchor
-	{
-	protected:
-        unicode_iterator iter;
-        unicode_iterator end;
-
-	public:
-        anchor(const unicode_iterator& start, const unicode_iterator& end) : iter(start), end(end)
-		{
-		}
-
-        void set_anchor(const unicode_iterator& start)
-        {
-            iter = start;
-        }
-	};
 
     template <typename unicode_iterator>
     class attribute
@@ -220,39 +217,38 @@ namespace xml
     };
 
     template <typename unicode_iterator>
-    class element_iterator : public std::iterator<std::forward_iterator_tag, element<unicode_iterator> >,
-        public anchor<unicode_iterator>
+    class element_iterator 
+        : public std::iterator<std::forward_iterator_tag, element<unicode_iterator> >
     {
         typedef element<unicode_iterator> element_type;
-        typedef typename parser::next_open::ast<unicode_iterator>::type open_ast;
+        typedef typename parse::ast_type<parser::element_content, unicode_iterator>::type content_ast_type;
+        typedef typename content_ast_type::container_type::iterator ast_iterator;
 
-        open_ast open;
+        ast_iterator ast_iter;
+        ast_iterator ast_end;
 
     public:
-        element_iterator(const unicode_iterator& start, const unicode_iterator& end) 
-            : anchor(start, end)
+        element_iterator(const ast_iterator& iter, const ast_iterator& end) 
+            : ast_iter(iter), ast_end(end)
         {
             get();
         }
 
-        element_iterator(const element_iterator& other) : open(other.open), anchor(other)
-        {
-        }
-
         element_type operator* ()
         {
-            if (iter == end) throw std::exception("iterator out of bounds");
-            return element_type(open[_1][_0], end);
+            if (ast_iter == ast_end) throw std::exception("iterator out of bounds");
+            auto& elem_ast = *(*ast_iter)[_0].ptr.get();
+            return element_type(elem_ast);
         }
 
         bool operator== (const element_iterator& other)
         {
-            return iter == other.iter;
+            return ast_iter == other.ast_iter;
         }
 
         bool operator!= (const element_iterator& other)
         {
-            return iter != other.iter;
+            return ast_iter != other.ast_iter;
         }
 
         element_iterator& operator++ ()
@@ -271,55 +267,41 @@ namespace xml
     private:
         void advance()
         {
-            if (iter == end) return;
-
-            using namespace parse::operators;
-
-            // Parse the remainder of the content, plus the closing tag.
-            typedef decltype(parser::element_content() >> parser::element_close()) content_parser;
-            typedef typename content_parser::ast<unicode_iterator>::type content_ast;
-
-            content_parser content;
-            content_ast ast;
-            if (!content.parse_from(iter, end, ast)) throw std::exception("parse error");
-
+            if (ast_iter == ast_end) return;
+            ast_iter++;
             get();
         }
 
         void get()
         {
-            if (iter == end) return;
-
-            parser::next_open p;
-            if (!p.parse_from(iter, end, open)) throw std::exception("parse error");
-
-            // If we get an element close, that means we are finished 
-            // iterating.
-            if (open[_1][_1].matched) iter == end;
+            while (ast_iter != ast_end && !(*ast_iter)[_0].matched)
+                ast_iter++;
         }
     };
 
     template <typename unicode_iterator>
-    class element_list : public anchor<unicode_iterator>
+    class element_list
     {
+        typedef typename parser::element_content::ast<unicode_iterator>::type ast_type;
+        ast_type& ast;
 
     public:
         typedef element<unicode_iterator> element_type;
         typedef element_iterator<unicode_iterator> iterator;
 
-        element_list(const unicode_iterator& start, const unicode_iterator& end) 
-            : anchor(iter, end)
+        element_list(ast_type& a) 
+            : ast(a)
         {
         }
 
         iterator begin()
         {
-            return iterator(iter, anchor<unicode_iterator>::end);
+            return iterator(ast.matches.begin(), ast.matches.end());
         }
 
         iterator end()
         {
-            return iterator(anchor<unicode_iterator>::end, anchor<unicode_iterator>::end);
+            return iterator(ast.matches.end(), ast.matches.end());
         }
 
         std::string operator[](const std::string& name)
@@ -336,60 +318,51 @@ namespace xml
     };
 
 	template <typename unicode_iterator>
-    class element : public anchor<unicode_iterator>
+    class element
 	{
-        typedef typename parse::ast_type<parser::element_open, unicode_iterator>::type open_ast;
-        typedef typename parse::ast_type<parser::element_content, unicode_iterator>::type content_ast;
-        unicode_iterator content_start;
+        typedef typename parse::ast_type<parser::element, unicode_iterator>::type ast_type;
 
-        open_ast open;
-        content_ast content;
+        ast_type& ast;
 
 	public:
         typedef attribute_list<unicode_iterator> attribute_list_type;
         typedef attribute<unicode_iterator> attribute_type;
-
         typedef element_list<unicode_iterator> element_list_type;
 
         attribute_list_type attributes;
         element_list_type elements;
 
-		element(unicode_iterator& start, unicode_iterator& end) : anchor(start, end), attributes(open[_2].option), elements(end, end)
+		element(ast_type& a) 
+            : attributes(a[_2].option), 
+            elements(a[_3][_1][_1]), 
+            ast(a)
 		{
-			parser::element_open parser;
-			if (!parser.parse_from(start, end, open)) throw std::exception("parse error");
-            content_start = start;
-            elements.set_anchor(start);
 		}
 
-        element(open_ast& a, unicode_iterator& end) : open(a), content_start(a.end), anchor(a.start, end), attributes(a[_2].option), elements(a.end, end)
-        {
-        }
-
-		std::string name()
+        std::string name()
 		{
-			return get_string(open[_1]);
+			return get_string(ast[_1]);
 		}
 
 		std::string local_name()
 		{
-			return get_string(open[_1].group[_1]);
+			return get_string(ast[_1].group[_1]);
 		}
 
         std::string prefix()
         {
-            auto& pre = open[_1].group[_0].option[_0];
+            auto& pre = ast[_1].group[_0].option[_0];
             return pre.matched ? get_string(pre) : "";
         }
 
         std::string text()
         {
-            parser::element_content parser;
-            if (!parser.parse_from(content_start, end, content)) throw std::exception("parse error");
             std::string ret;
+
+            auto& childnodes = ast[_3][_1][_1].matches;
             
-            for (auto child = content.matches.begin();
-                child != content.matches.end(); child++)
+            for (auto child = childnodes.begin();
+                child != childnodes.end(); child++)
             {
                 auto& text_ast = (*child)[_1];
                 if (text_ast.matched) ret += get_string(text_ast);
@@ -403,7 +376,7 @@ namespace xml
 	{
         typedef typename unicode::unicode_container<octet_container> unicode_container;
 	    typedef typename unicode_container::iterator unicode_iterator;
-        typedef typename parse::ast_type<parser::prolog, unicode_iterator>::type ast_type;
+        typedef typename parse::ast_type<parser::document, unicode_iterator>::type ast_type;
 
         unicode_container data;
         ast_type ast;
@@ -413,16 +386,13 @@ namespace xml
 
 		document(octet_container& c) : data(c)
 		{
-		}
+			parser::document p;
+			if (!p.parse(data, ast)) throw parse_error();
+        }
 
 		element_type root()
 		{
-			parser::prolog p;
-            auto it = data.begin();
-            auto end = data.end();
-			if (!p.parse_from(it, end, ast)) throw std::exception("parse error");
-
-            return element_type(it, end);
+            return element_type(ast[_1]);
 		}
 	};
 
