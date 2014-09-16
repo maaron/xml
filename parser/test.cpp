@@ -27,26 +27,22 @@
 // A downside to this method is that we seem to get some strange errors in 
 // xlocnum.h, associated with bringing the parse::operators namespace in to 
 // scope alongside the accessors.
+
 namespace custom_ast_test
 {
     using namespace parse::terminals;
+    using namespace parse::operators;
 
     static u<'1'> uone;
     static u<'2'> utwo;
     static u<'3'> uthree;
 
-    namespace expressions
-    {
-        using namespace parse::operators;
+    typedef decltype(uone >> utwo >> uthree) base_t;
 
-    //typedef parse::sequence<parse::sequence<u<'1'>, u<'2'> >, u<'3'> > base_t;
-        typedef decltype(uone >> utwo >> uthree) base_t;
-    }
-
-    struct parser_t : public expressions::base_t
+    struct parser_t : public base_t
     {
         template <typename iterator_t>
-        struct ast : public parse::ast_type<expressions::base_t, iterator_t>::type
+        struct ast : public parse::ast_type<base_t, iterator_t>::type
         {
             typedef ast type;
             
@@ -67,17 +63,12 @@ namespace custom_ast_test
         };
     };
 
-    namespace expressions
-    {
-        using namespace parse::operators;
+    typedef decltype(utwo >> uthree >> parser_t()) base2_t;
 
-        typedef decltype(utwo >> uthree >> parser_t()) base2_t;
-    }
-
-    struct parser2_t : public expressions::base2_t
+    struct parser2_t : public base2_t
     {
         template <typename iterator_t>
-        struct ast : public expressions::base2_t::ast<iterator_t>::type
+        struct ast : public base2_t::ast<iterator_t>::type
         {
             typedef ast type;
             
@@ -161,11 +152,6 @@ int _tmain(int argc, _TCHAR* argv[])
     typedef document::element_type element;
     typedef element::attribute_type attribute;
 
-    std::string test_data("asdfdf</nspre:root>");
-    xml::parser::next_open p;
-    xml::parser::next_open::ast<std::string::iterator>::type ast;
-    bool valid = p.parse(test_data, ast);
-    
     document doc(xml_data);
 
     auto root = doc.root();
@@ -189,6 +175,8 @@ int _tmain(int argc, _TCHAR* argv[])
     {
         std::cout << "child element: " << e.name() << std::endl;
     });
+
+    auto doc2 = xml::parse(xml_data);
 
     return 0;
 }

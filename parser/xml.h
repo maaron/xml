@@ -38,7 +38,15 @@ namespace xml
 
         auto content_char = ~(lt | gt);
 		
-		typedef decltype((squote >> *(~squote) >> squote) | (dquote >> *(~dquote) >> dquote)) qstring;
+		typedef decltype((squote >> *(~squote) >> squote) | (dquote >> *(~dquote) >> dquote)) qstring_t;
+        struct qstring : public qstring_t
+        {
+            template <typename iterator_t>
+            struct ast : public qstring_t::ast<iterator_t>
+            {
+
+            };
+        };
 
 		typedef decltype(qname >> eq >> qstring()) attribute;
 
@@ -65,7 +73,7 @@ namespace xml
 
 	}
 
-	template <typename octet_container>
+    template <typename container>
     class document;
 
     template <typename unicode_iterator>
@@ -398,10 +406,10 @@ namespace xml
         }
 	};
 
-	template <typename octet_container>
+	template <typename container>
     class document
 	{
-        typedef typename unicode::unicode_container<octet_container> unicode_container;
+        typedef typename unicode::unicode_container<container> unicode_container;
 	    typedef typename unicode_container::iterator unicode_iterator;
         typedef typename parse::ast_type<parser::prolog, unicode_iterator>::type ast_type;
 
@@ -411,7 +419,7 @@ namespace xml
 	public:
         typedef element<unicode_iterator> element_type;
 
-		document(octet_container& c) : data(c)
+        document(container& c) : data(c)
 		{
 		}
 
@@ -426,4 +434,9 @@ namespace xml
 		}
 	};
 
+    template <typename container>
+    document<container> parse(container& c)
+    {
+        return document<container>(c);
+    }
 }
