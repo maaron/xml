@@ -538,6 +538,14 @@ namespace parse
 			}
 		};
 
+        struct space : public single<space, char32_t>
+        {
+            bool match(char32_t t)
+            {
+                return isspace(t) != 0;
+            }
+        };
+
     }
 
 }

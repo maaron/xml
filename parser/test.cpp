@@ -106,8 +106,38 @@ namespace custom_ast_test
     }
 }
 
+namespace ast_tag_test
+{
+    using namespace parse;
+    using namespace parse::operators;
+    using namespace parse::terminals;
+
+    auto num = +digit();
+    auto lparen = u<'('>();
+    auto rparen = u<')'>();
+
+    struct s_expr;
+
+    typedef decltype(num | reference<s_expr>()) elem_t;
+
+    typedef decltype(lparen >> *space() >> elem_t() >> *(+space() >> elem_t()) >> *space() >> rparen) s_expr_t;
+
+    struct s_expr : s_expr_t {};
+
+    void test()
+    {
+        s_expr p;
+        std::string data("(1 (2 33 345) ((((1234)))))");
+        auto ast = tree::make_ast(p, data);
+
+        bool valid = p.parse(data, ast);
+    }
+}
+
 int _tmain(int argc, _TCHAR* argv[])
 {
+    ast_tag_test::test();
+
     /* Unicode tests
   //std::string v = "\xEF\xBB\xBFthis is a UTF8-encoded string with a BOM.";
   //std::string v = "this is a UTF8-encoded string without a BOM.";
