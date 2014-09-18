@@ -34,8 +34,16 @@ namespace xml
 		auto tab = u<'\t'>();
 		auto cr = u<'\r'>();
 		auto lf = u<'\n'>();
+        auto bang = u<'!'>();
+        auto dash = u<'-'>();
+        auto dot = u<'.'>();
+        auto uscore = u<'_'>();
+        
+        auto xmlchar = any();
 
-		auto name = alpha() >> *(alpha() | digit());
+        auto namechar = alpha() | digit() | dot | dash | uscore | colon;
+
+		auto name = (alpha() | uscore | colon) >> *namechar;
 
 		typedef decltype(!(group(name) >> colon) >> name) qname_t;
         struct qname : qname_t
@@ -47,8 +55,10 @@ namespace xml
 
                 std::string prefix()
                 {
-                    return (*this)[_0].option ?
-                        get_string((*this)[_0][_0]) : "";
+                    auto n = name();
+                    auto colon = n.find(':');
+                    return colon == std::string::npos?
+                        "" : n.substr(0, colon + 1);
                 }
 
                 std::string name()
@@ -58,7 +68,10 @@ namespace xml
 
                 std::string local_name()
                 {
-                    return get_string((*this)[_1]);
+                    auto n = name();
+                    auto colon = n.find(':');
+                    return colon == std::string::npos?
+                        "" : n.substr(colon + 1);
                 }
             };
         };
@@ -123,16 +136,25 @@ namespace xml
         typedef decltype(*(childnode())) element_content;
 
         typedef decltype(lt >> group(qname()) >> !attribute_list() >> ((fslash >> gt) | (gt >> element_content() >> element_close()))) element_base;
-		
+
 		struct element : public element_base {};
 
-		typedef decltype(!ws >> lt >> qmark >> *(~qmark) >> qmark >> gt >> !ws) prolog;
+		typedef decltype(lt >> bang >> dash >> dash >> *(~dash | (dash >> ~dash)) >> dash >> dash >> gt) comment;
 
-        typedef decltype(!prolog() >> element()) document;
+        typedef decltype(lt >> qmark >> *(xmlchar - (qmark >> gt)) >> qmark >> gt) pi;
+
+        typedef decltype(comment() | pi() | ws) misc;
+
+        typedef decltype(lt >> qmark >> *(~qmark) >> qmark >> gt) xmldecl;
+
+        typedef decltype(lt >> bang >> *(~gt) >> gt)  doctypedecl;
+
+        typedef decltype(!xmldecl() >> *misc() >> !(doctypedecl() >> *misc())) prolog;
+
+        struct document : std::identity<decltype(group(prolog()) >> element())>::type {};
 
         // This parser reads the next element open or close tag, skipping over any preceeding content
         //typedef decltype(*parser::content_char >> (parser::element_open() | parser::element_close())) next_open;
-
 	}
 
     template <typename container>
@@ -392,18 +414,17 @@ namespace xml
 
         std::string name()
 		{
-			return get_string(ast[_1]);
+			return ast[_1].group.name();
 		}
 
 		std::string local_name()
 		{
-			return get_string(ast[_1].group[_1]);
+			return ast[_1].group.local_name();
 		}
 
         std::string prefix()
         {
-            auto& pre = ast[_1].group[_0].option[_0];
-            return pre.matched ? get_string(pre) : "";
+            return ast[_1].group.prefix();
         }
 
         std::string text()

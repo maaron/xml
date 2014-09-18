@@ -72,10 +72,9 @@ namespace parse
 
     public:
         template <typename iterator_t>
-        struct ast : public tree::ast_base<iterator_t>
+        struct ast
         {
-            typedef ast type;
-            typename parser_t::template ast<iterator_t>::type group;
+            typedef tree::grouped<parser_t, iterator_t> type;
         };
 
         grouped()
@@ -204,9 +203,7 @@ namespace parse
         template <typename iterator_t>
         struct ast : public tree::ast_base<iterator_t>
         {
-            typedef ast type;
-            typedef std::vector< typename ast_type<parser_t, iterator_t>::type > container_type;
-            container_type matches;
+            typedef tree::zero_or_more<parser_t, iterator_t> type;
         };
 
         template <typename iterator_t, typename ast_t>
@@ -246,8 +243,7 @@ namespace parse
         template <typename iterator_t>
         struct ast : public tree::ast_base<iterator_t>
         {
-            typedef ast type;
-            std::vector<typename ast_type<parser_t, iterator_t>::type> matches;
+            typedef tree::repetition<parser_t, iterator_t> type;
         };
 
     protected:
@@ -292,8 +288,7 @@ namespace parse
         template <typename iterator_t>
         struct ast : public tree::ast_base<iterator_t>
         {
-            typedef ast type;
-            typename ast_type<parser_t, iterator_t>::type option;
+            typedef tree::optional<parser_t, iterator_t> type;
         };
 
         parser_t parser;
@@ -322,12 +317,7 @@ namespace parse
         template <typename iterator_t>
         struct ast : public tree::ast_base<iterator_t>
         {
-            typedef ast type;
-            token_t token;
-
-            ast() : token(0)
-            {
-            }
+            typedef tree::single<token_t, iterator_t> type;
         };
 
         template <typename iterator_t>
@@ -421,19 +411,6 @@ namespace parse
         }
     };
 
-    // This should probably go in the tree namespace.  This is defined here, 
-    // as opposed to being a nested struct in the reference class, as the 
-    // alternative proceduces a self-instanciating template.  I suppose when
-    // tries to instanciate itself (while being instanciated), things fail
-    // because some members haven't been created yet (as it hasn't completely
-    // instanciated).  Using a separate template (non-nested) allows the 
-    // reference class to reference itself without instanciating itself.
-    template <typename parser_t, typename iterator_t>
-    struct reference_ast : public tree::ast_base<iterator_t>
-    {
-        std::shared_ptr<typename parser_t::template ast<iterator_t>::type> ptr;
-    };
-
     // This parser is used to make recursive parsers that refer to 
     // themselves, either directly or via some other sub-parser.
     template <typename parser_t>
@@ -444,7 +421,7 @@ namespace parse
         template <typename iterator_t>
         struct ast
         {
-            typedef reference_ast<parser_t, iterator_t> type;
+            typedef tree::reference<parser_t, iterator_t> type;
         };
 
         template <typename iterator_t>
@@ -458,12 +435,12 @@ namespace parse
     };
 
     // This parser matches only if the first_t parser matches and the 
-    // second_t doesn't (from the same location).  This could potentially be
-    // expanded to support single token parsing, but doesn't currently.
+    // second_t doesn't (from the same location).  This supports single
+    // token parsing if both types are also single.
     template <typename first_t, typename second_t>
     struct difference 
         : public parser< difference<first_t, second_t> >,
-        public parser_traits<false>
+        public parser_traits< first_t::is_single && second_t::is_single >
     {
         first_t first;
         second_t second;
@@ -474,6 +451,8 @@ namespace parse
         {
             typedef typename first_t::ast<iterator_t>::type type;
         };
+
+        difference() {}
 
         difference(const first_t& f, const second_t& s) : first(f), second(s) {}
 
@@ -486,6 +465,12 @@ namespace parse
             return 
                 first.parse_from(start, end, tree) && 
                 !second.parse_from(tmp, end, second_tree);
+        }
+
+        template <typename token_t>
+        bool match(token_t t)
+        {
+            return first.match(t) && !second.match(t);
         }
     };
 
@@ -564,11 +549,11 @@ namespace parse
     {
 
         template <char32_t t>
-		class u : public constant<unsigned int, t>
+		struct u : constant<unsigned int, t>
 		{
 		};
 
-		struct digit : public single<digit, char32_t>
+		struct digit : single<digit, char32_t>
 		{
 			bool match(char32_t t)
 			{
@@ -576,13 +561,18 @@ namespace parse
 			}
 		};
 
-		struct alpha : public single<alpha, char32_t>
+		struct alpha : single<alpha, char32_t>
 		{
 			bool match(char32_t t)
 			{
 				return isalpha(t) != 0;
 			}
 		};
+
+        struct any : single<any, char32_t>
+        {
+            bool match(char32_t) { return true; }
+        };
 
     }
 

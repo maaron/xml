@@ -9,6 +9,7 @@
 #pragma warning( disable : 4503 )
 
 #include <string>
+#include <fstream>
 #include <sstream>
 #include <iostream>
 #include <algorithm>
@@ -149,9 +150,14 @@ int _tmain(int argc, _TCHAR* argv[])
     //std::wstring xml_data(L"<?xml encoding='UTF-8'?><nspre:root attribute1=\"value1\">root content part 1<ns:child1>child1 content<grandchild11/></ns:child1><child2>child2 content</child2></nspre:root>");
     //std::wstring xml_data(L"\uFFFE<?xml encoding='UTF-8'?><nspre:root attribute1=\"value1\">root content part 1<ns:child1>child1 content<grandchild11></grandchild11></ns:child1><child2>child2 content</child2></nspre:root>");
 
-    // Stream parsing
-    std::stringstream stream_data("<?xml encoding='UTF-8'?><nspre:root attribute1=\"value1\">root content part 1<ns:child1>child1 content<grandchild11/></ns:child1><child2>child2 content</child2></nspre:root>");
-    util::streambuf_container<std::streambuf> xml_data(stream_data.rdbuf());
+    // String stream parsing
+    //std::stringstream stream_data("<?xml encoding='UTF-8'?><nspre:root attribute1=\"value1\">root content part 1<ns:child1>child1 content<grandchild11/></ns:child1><child2>child2 content</child2></nspre:root>");
+    //util::streambuf_container<std::streambuf> xml_data(stream_data.rdbuf());
+
+    // File parsing
+    std::ifstream ifs;
+    ifs.open("test\\APP_1XRTT.cfg", std::ios_base::in);
+    util::streambuf_container<std::streambuf> xml_data(ifs.rdbuf());
 
     // Some typedefs for convenience
     typedef xml::document<decltype(xml_data)> document;
