@@ -201,7 +201,7 @@ namespace parse
         }
 
         template <typename iterator_t>
-        struct ast : public tree::ast_base<iterator_t>
+        struct ast
         {
             typedef tree::zero_or_more<parser_t, iterator_t> type;
         };
@@ -241,7 +241,7 @@ namespace parse
         }
 
         template <typename iterator_t>
-        struct ast : public tree::ast_base<iterator_t>
+        struct ast
         {
             typedef tree::repetition<parser_t, iterator_t> type;
         };
@@ -286,7 +286,7 @@ namespace parse
         }
 
         template <typename iterator_t>
-        struct ast : public tree::ast_base<iterator_t>
+        struct ast
         {
             typedef tree::optional<parser_t, iterator_t> type;
         };
@@ -315,7 +315,7 @@ namespace parse
         typedef token_t token_type;
 
         template <typename iterator_t>
-        struct ast : public tree::ast_base<iterator_t>
+        struct ast
         {
             typedef tree::single<token_t, iterator_t> type;
         };
@@ -569,11 +569,12 @@ namespace parse
 			}
 		};
 
-        struct any : single<any, char32_t>
+        struct space : public single<space, char32_t>
         {
-            bool match(char32_t) { return true; }
-        };
-
-    }
+            bool match(char32_t t)
+            {
+                return isspace(t) != 0;
+            }
+        };    }
 
 }
