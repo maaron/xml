@@ -3,6 +3,8 @@
 
 #include "stdafx.h"
 
+#include <boost\mpl\begin.hpp>
+
 // The extensive use of templates causes this "decorated name length too 
 // long" warning all over the place.  Since we aren't exporting any of these 
 // template instanciations in a library, it is safe to ignore.
@@ -134,36 +136,6 @@ namespace ast_tag_test
 
         bool valid = p.parse(data, ast);
     }
-}
-
-template <typename t1, typename t2>
-struct A
-{
-};
-
-template <typename t1>
-struct C
-{
-    template <typename t2, typename t3>
-    struct B
-    {
-    };
-};
-
-template <typename t1, typename t2, typename t3>
-void foo(typename C<t1>::template B<t2, t3>& b)
-{
-}
-
-template <typename t1, typename t2>
-void food(A<t1, t2>& a)
-{
-}
-
-void bar()
-{
-    C<long>::B<int, char> b;
-    foo<long>(b);
 }
 
 int _tmain(int argc, _TCHAR* argv[])
