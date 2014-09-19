@@ -18,7 +18,7 @@ namespace util
 	static index<9> _9;
 
 	// Creates a two element list
-	template <template <typename, typename> class derived_t, typename first_t, typename second_t>
+	template <template <typename, typename, typename> class derived_t, typename iterator_t, typename first_t, typename second_t>
 	struct list
 	{
 		first_t first;
@@ -36,10 +36,10 @@ namespace util
 
 	// Creates an N+1-element list by appending second_t to the N-element list 
 	// list_t<t1, t2>.
-	template <template <typename, typename> class derived_t, typename t1, typename t2, typename second_t>
-	struct list< derived_t, derived_t<t1, t2>, second_t >
+	template <template <typename, typename, typename> class derived_t, typename iterator_t, typename t1, typename t2, typename second_t>
+	struct list< derived_t, iterator_t, derived_t<iterator_t, t1, t2>, second_t >
 	{
-		typedef derived_t<t1, t2> first_t;
+		typedef derived_t<iterator_t, t1, t2> first_t;
 
 		first_t first;
 		second_t second;

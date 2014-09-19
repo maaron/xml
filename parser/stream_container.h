@@ -68,6 +68,11 @@ namespace util
             return !(operator == (rhs));
         }
 
+        bool operator< (const streambuf_iterator& rhs) const
+        {
+            return pos < rhs.pos;
+        }
+
         streambuf_iterator& operator ++ ()
         {
             if (!eof())

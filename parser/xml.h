@@ -1,6 +1,7 @@
 #pragma once
 
 #include <assert.h>
+#include <string>
 #include "parse.h"
 #include "unicode.h"
 
@@ -10,8 +11,27 @@ namespace xml
 
     class parse_error : public std::exception
     {
+        std::string message;
+
     public:
-        parse_error() : std::exception("xml parse error") {}
+        parse_error() : message("xml parse error")
+        {
+        }
+
+        template <typename iterator_t>
+        parse_error(iterator_t next, iterator_t end) : message("Parse failed here: ")
+        {
+            std::string next_chars;
+            size_t count = 0;
+            auto stop = next;
+            while (next != end && count < 100) { stop++; count++; }
+            utf8::utf32to8(next, stop, std::back_inserter(message));
+        }
+
+        const char* what() const override
+        {
+            return message.c_str();
+        }
     };
 
     namespace parser
@@ -99,7 +119,7 @@ namespace xml
         };
         
 
-		typedef decltype(group(qname()) >> eq >> qstring()) attribute_t;
+		typedef decltype(ws >> group(qname()) >> eq >> qstring()) attribute_t;
         struct attribute : attribute_t
         {
             template <typename iterator_t>
@@ -109,19 +129,19 @@ namespace xml
 
                 typename qstring::ast<iterator_t>::type qstring()
                 {
-                    return (*this)[_2];
+                    return (*this)[_3];
                 }
 
                 typename qname::ast<iterator_t>::type& key()
                 {
-                    return (*this)[_0].group;
+                    return (*this)[_1].group;
                 }
             };
         };
 
-		typedef decltype(ws >> +(attribute())) attribute_list;
+		typedef decltype(*attribute()) attribute_list;
 
-		typedef decltype(lt >> qname() >> !attribute_list() >> gt) element_open;
+		typedef decltype(lt >> qname() >> attribute_list() >> gt) element_open;
 
 		typedef decltype(lt >> fslash >> qname() >> gt) element_close;
 
@@ -131,15 +151,15 @@ namespace xml
 
         typedef decltype(*content_char) textnode;
 
-        typedef decltype(element_ref() | textnode()) childnode;
+		typedef decltype(lt >> bang >> dash >> dash >> *(~dash | (dash >> ~dash)) >> dash >> dash >> gt) comment;
+
+        typedef decltype(element_ref() | comment() | textnode()) childnode;
 
         typedef decltype(*(childnode())) element_content;
 
-        typedef decltype(lt >> group(qname()) >> !attribute_list() >> ((fslash >> gt) | (gt >> element_content() >> element_close()))) element_base;
+        typedef decltype(lt >> group(qname()) >> !attribute_list() >> !ws >> ((fslash >> gt) | (gt >> element_content() >> element_close()))) element_base;
 
 		struct element : public element_base {};
-
-		typedef decltype(lt >> bang >> dash >> dash >> *(~dash | (dash >> ~dash)) >> dash >> dash >> gt) comment;
 
         typedef decltype(lt >> qmark >> *(xmlchar - (qmark >> gt)) >> qmark >> gt) pi;
 
@@ -151,7 +171,7 @@ namespace xml
 
         typedef decltype(!xmldecl() >> *misc() >> !(doctypedecl() >> *misc())) prolog;
 
-        struct document : std::identity<decltype(group(prolog()) >> element())>::type {};
+        typedef decltype(group(prolog()) >> element()) document;
 
         // This parser reads the next element open or close tag, skipping over any preceeding content
         //typedef decltype(*parser::content_char >> (parser::element_open() | parser::element_close())) next_open;
@@ -266,14 +286,12 @@ namespace xml
 
         iterator begin()
         {
-            return ast[_1].matched ? 
-                iterator(ast[_1].matches.begin()) : 
-                end();
+            return iterator(ast.matches.begin());
         }
 
         iterator end()
         {
-            return ast[_1].matches.end();
+            return ast.matches.end();
         }
 
         std::string operator[](const std::string& name)
@@ -407,7 +425,7 @@ namespace xml
 
 		element(ast_type& a) 
             : attributes(a[_2].option), 
-            elements(a[_3][_1][_1]), 
+            elements(a[_4][_1][_1]), 
             ast(a)
 		{
 		}
@@ -431,7 +449,7 @@ namespace xml
         {
             std::string ret;
 
-            auto& childnodes = ast[_3][_1][_1].matches;
+            auto& childnodes = ast[_4][_1][_1].matches;
             
             for (auto child = childnodes.begin();
                 child != childnodes.end(); child++)
@@ -459,7 +477,18 @@ namespace xml
         document(container& c) : data(c)
 		{
 			parser::document p;
-			if (!p.parse(data, ast)) throw parse_error();
+            auto begin = data.begin();
+            auto end = data.end();
+			if (!p.parse_from(begin, end, ast))
+            {
+                //auto last = parse::tree::last_match<
+                    //ast_type::first_t,  ast_type::second_t, 
+                    //ast_type::iterator, char32_t>(ast);
+
+                auto last = parse::tree::last_match<unicode_iterator>(ast);
+
+                throw parse_error(last, end);
+            }
         }
 
 		element_type root()
@@ -474,3 +503,23 @@ namespace xml
         return document<container>(c);
     }
 }
+
+template <> struct ::parse::debug_tag<xml::parser::attribute_list> { static const char* name() { return "xml::attribute_list"; } };
+template <> struct ::parse::debug_tag<xml::parser::element_open> { static const char* name() { return "xml::element_open"; } };
+template <> struct ::parse::debug_tag<xml::parser::element_close> { static const char* name() { return "xml::element_close"; } };
+template <> struct ::parse::debug_tag<xml::parser::element_ref> { static const char* name() { return "xml::element_ref"; } };
+template <> struct ::parse::debug_tag<xml::parser::textnode> { static const char* name() { return "xml::textnode"; } };
+template <> struct ::parse::debug_tag<xml::parser::comment> { static const char* name() { return "xml::comment"; } };
+template <> struct ::parse::debug_tag<xml::parser::childnode> { static const char* name() { return "xml::childnode"; } };
+template <> struct ::parse::debug_tag<xml::parser::element_content> { static const char* name() { return "xml::element_content"; } };
+template <> struct ::parse::debug_tag<xml::parser::element_base> { static const char* name() { return "xml::element"; } };
+template <> struct ::parse::debug_tag<xml::parser::pi> { static const char* name() { return "xml::pi"; } };
+template <> struct ::parse::debug_tag<xml::parser::misc> { static const char* name() { return "xml::misc"; } };
+template <> struct ::parse::debug_tag<xml::parser::xmldecl> { static const char* name() { return "xml::xmldecl"; } };
+template <> struct ::parse::debug_tag<xml::parser::doctypedecl> { static const char* name() { return "xml::doctypedecl"; } };
+template <> struct ::parse::debug_tag<xml::parser::prolog> { static const char* name() { return "xml::prolog"; } };
+template <> struct ::parse::debug_tag<xml::parser::document> { static const char* name() { return "xml::document"; } };
+
+using namespace parse::operators;
+template <> struct ::parse::debug_tag<decltype(xml::parser::fslash >> xml::parser::gt)> { static const char* name() { return "xml::/>"; } };
+template <> struct ::parse::debug_tag<decltype(xml::parser::gt >> xml::parser::element_content() >> xml::parser::element_close())> { static const char* name() { return "xml::content + close tag"; } };

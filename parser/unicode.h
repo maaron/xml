@@ -342,6 +342,11 @@ namespace unicode
             return !(operator == (rhs));
         }
 
+        bool operator< (const unicode_iterator& rhs) const
+        {
+            return current < rhs.current;
+        }
+
         unicode_iterator& operator ++ () 
         {
             if (current != end)

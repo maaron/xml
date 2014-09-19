@@ -136,6 +136,36 @@ namespace ast_tag_test
     }
 }
 
+template <typename t1, typename t2>
+struct A
+{
+};
+
+template <typename t1>
+struct C
+{
+    template <typename t2, typename t3>
+    struct B
+    {
+    };
+};
+
+template <typename t1, typename t2, typename t3>
+void foo(typename C<t1>::template B<t2, t3>& b)
+{
+}
+
+template <typename t1, typename t2>
+void food(A<t1, t2>& a)
+{
+}
+
+void bar()
+{
+    C<long>::B<int, char> b;
+    foo<long>(b);
+}
+
 int _tmain(int argc, _TCHAR* argv[])
 {
     ast_tag_test::test();
@@ -181,12 +211,12 @@ int _tmain(int argc, _TCHAR* argv[])
     //std::wstring xml_data(L"\uFFFE<?xml encoding='UTF-8'?><nspre:root attribute1=\"value1\">root content part 1<ns:child1>child1 content<grandchild11></grandchild11></ns:child1><child2>child2 content</child2></nspre:root>");
 
     // String stream parsing
-    //std::stringstream stream_data("<?xml encoding='UTF-8'?><nspre:root attribute1=\"value1\">root content part 1<ns:child1>child1 content<grandchild11/></ns:child1><child2>child2 content</child2></nspre:root>");
+    //std::stringstream stream_data("<?xml encoding='UTF-8'?><nspre:root attribute1=\"value1\"  attribute2='value2'>root content part 1<ns:child1>child1 content<grandchild11 a='123' /></ns:child1><child2>child2 content</child2></nspre:root>");
     //util::streambuf_container<std::streambuf> xml_data(stream_data.rdbuf());
 
     // File parsing
     std::ifstream ifs;
-    ifs.open("test\\APP_1XRTT.cfg", std::ios_base::in);
+    ifs.open("test\\cfg_test.cfg", std::ios_base::in);
     util::streambuf_container<std::streambuf> xml_data(ifs.rdbuf());
 
     // Some typedefs for convenience
@@ -194,44 +224,54 @@ int _tmain(int argc, _TCHAR* argv[])
     typedef document::element_type element;
     typedef element::attribute_type attribute;
 
-    document doc(xml_data);
+    try
+    {
+        document doc(xml_data);
 
-    auto root = doc.root();
+        std::cout << "document size: " << sizeof(document) << std::endl;
+        std::cout << "document parser size: " << sizeof(xml::parser::document) << std::endl;
 
-    auto name = root.name();
-    auto localname = root.local_name();
-    auto prefix = root.prefix();
+        auto root = doc.root();
 
-    auto& attributes = root.attributes;
+        auto name = root.name();
+        auto localname = root.local_name();
+        auto prefix = root.prefix();
+
+        auto& attributes = root.attributes;
     
-    std::for_each(attributes.begin(), attributes.end(), [](attribute& a)
+        std::for_each(attributes.begin(), attributes.end(), [](attribute& a)
+        {
+            std::cout << "root attribute: " << a.name() << "=" << a.value() << std::endl;
+        });
+
+        auto attribute1 = root.attributes["attribute1"];
+
+        std::for_each(root.elements.begin(), root.elements.end(), [](element& e)
+        {
+            std::cout << "child element: " << e.name() << std::endl;
+        });
+
+        auto text = root.text();
+
+        auto child = *std::find_if(root.elements.begin(), root.elements.end(), [](element& e)
+        {
+            return e.local_name() == "child1";
+        });
+
+        auto gchild = *std::find_if(child.elements.begin(), child.elements.end(), [](element& e)
+        {
+            return e.name() == "grandchild11";
+        });
+
+        auto gchild_text = gchild.text();
+        auto gchild_name = gchild.name();
+
+        auto hasAttribs = gchild.attributes.begin() != gchild.attributes.end();
+    }
+    catch (xml::parse_error& e)
     {
-        std::cout << "root attribute: " << a.name() << "=" << a.value() << std::endl;
-    });
-
-    auto attribute1 = root.attributes["attribute1"];
-
-    std::for_each(root.elements.begin(), root.elements.end(), [](element& e)
-    {
-        std::cout << "child element: " << e.name() << std::endl;
-    });
-
-    auto text = root.text();
-
-    auto child = *std::find_if(root.elements.begin(), root.elements.end(), [](element& e)
-    {
-        return e.local_name() == "child1";
-    });
-
-    auto gchild = *std::find_if(child.elements.begin(), child.elements.end(), [](element& e)
-    {
-        return e.name() == "grandchild11";
-    });
-
-    auto gchild_text = gchild.text();
-    auto gchild_name = gchild.name();
-
-    auto hasAttribs = gchild.attributes.begin() != gchild.attributes.end();
+        std::cout << e.what() << std::endl;
+    }
 
     return 0;
 }

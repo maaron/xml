@@ -7,6 +7,8 @@
 
 namespace parse
 {
+    template <typename parser_t>
+    struct debug_tag { static const char* name() { return "unknown"; } };
 
     template <typename parser_t, typename iterator_t>
     struct ast_type
@@ -34,10 +36,12 @@ namespace parse
         bool parse_from(iterator_t& start, iterator_t& end, typename ast_type<derived_t, iterator_t>::type& ast)
         {
             auto matchEnd = start;
+            ast.start = start;
+
+            ast.tag = parse::debug_tag<derived_t>::name();
 
             if (static_cast<derived_t*>(this)->parse_internal(matchEnd, end, ast))
             {
-                ast.start = start;
                 start = ast.end = matchEnd;
                 ast.parsed = true;
                 return (ast.matched = true);
@@ -118,9 +122,10 @@ namespace parse
         template <typename iterator_t>
         struct ast
         {
-            typedef typename tree::template ast_list<iterator_t>::template alternate<
-            typename first_t::template ast<iterator_t>::type,
-            typename second_t::template ast<iterator_t>::type> type;
+            typedef tree::alternate<
+                iterator_t,
+                typename first_t::template ast<iterator_t>::type,
+                typename second_t::template ast<iterator_t>::type> type;
         };
 
         alternate()
@@ -170,7 +175,8 @@ namespace parse
         template <typename iterator_t>
         struct ast
         {
-            typedef typename tree::template ast_list<iterator_t>::template sequence<
+            typedef tree::sequence<
+                iterator_t,
                 typename first_t::template ast<iterator_t>::type,
                 typename second_t::template ast<iterator_t>::type> type;
         };
@@ -203,23 +209,26 @@ namespace parse
         template <typename iterator_t>
         struct ast
         {
-            typedef tree::zero_or_more<parser_t, iterator_t> type;
+            typedef tree::repetition<parser_t, iterator_t> type;
         };
 
-        template <typename iterator_t, typename ast_t>
-        bool parse_internal(iterator_t& start, iterator_t& end, ast_t& ast)
+        template <typename iterator_t>
+        bool parse_internal(iterator_t& start, iterator_t& end, typename ast<iterator_t>::type& ast)
         {
+            typedef typename parser_t::template ast<iterator_t>::type ast_t;
+
             while (start != end)
             {
-                typename ast_type<parser_t, iterator_t>::type elem_tree;
-
-                if (!elem.parse_from(start, end, elem_tree)) break;
-
-                // This is neccessary to prevent endless looping when a 
-                // parser_t can have a valid, zero-length match.
-                if (elem_tree.start == elem_tree.end) break;
-
-                ast.matches.push_back(elem_tree);
+                ast_t partial;
+                if (!elem.parse_from(start, end, partial) || partial.start == partial.end)
+                {
+                    ast.partial = partial;
+                    break;
+                }
+                else
+                {
+                  ast.matches.push_back(partial);
+                }
             }
             return true;
         }
@@ -252,19 +261,30 @@ namespace parse
         template <typename iterator_t>
         bool parse_internal(iterator_t& start, iterator_t& end, typename ast<iterator_t>::type& tree)
         {
+            typedef typename parser_t::template ast<iterator_t>::type ast_t;
+
             size_t i;
             for (i = 0; i < min; i++)
             {
-                typename ast_type<parser_t, iterator_t>::type child;
-                if (!parser.parse_from(start, end, child)) return false;
-                tree.matches.push_back(child);
+                ast_t partial;
+                if (!parser.parse_from(start, end, partial))
+                {
+                    tree.partial = partial;
+                    return false;
+                }
+                tree.matches.push_back(partial);
             }
 
             for (; i < max; i++)
             {
-                typename ast_type<parser_t, iterator_t>::type child;
-                if (start == end || !parser.parse_from(start, end, child)) break;
-                tree.matches.push_back(child);
+                ast_t partial;
+                if (start == end) break;
+                if (!parser.parse_from(start, end, partial) || partial.start == partial.end)
+                {
+                    tree.partial = partial;
+                    break;
+                }
+                else tree.matches.push_back(partial);
             }
             return true;
         }
@@ -575,6 +595,13 @@ namespace parse
             {
                 return isspace(t) != 0;
             }
-        };    }
+        };
+
+        struct any : single<space, char32_t>
+        {
+            bool match(char32_t) { return true; }
+        };
+    
+    }
 
 }
