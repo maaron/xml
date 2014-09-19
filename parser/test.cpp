@@ -211,13 +211,13 @@ int _tmain(int argc, _TCHAR* argv[])
     //std::wstring xml_data(L"\uFFFE<?xml encoding='UTF-8'?><nspre:root attribute1=\"value1\">root content part 1<ns:child1>child1 content<grandchild11></grandchild11></ns:child1><child2>child2 content</child2></nspre:root>");
 
     // String stream parsing
-    //std::stringstream stream_data("<?xml encoding='UTF-8'?><nspre:root attribute1=\"value1\"  attribute2='value2'>root content part 1<ns:child1>child1 content<grandchild11 a='123' /></ns:child1><child2>child2 content</child2></nspre:root>");
-    //util::streambuf_container<std::streambuf> xml_data(stream_data.rdbuf());
+    std::stringstream stream_data("<?xml encoding='UTF-8'?><nspre:root attribute1=\"value1\"  attribute2='value2'>root content part 1<ns:child1>child1 content<grandchild11 a='123' /></ns:child1><child2>child2 content</child2></nspre:root>");
+    util::streambuf_container<std::streambuf> xml_data(stream_data.rdbuf());
 
     // File parsing
-    std::ifstream ifs;
-    ifs.open("test\\cfg_test.cfg", std::ios_base::in);
-    util::streambuf_container<std::streambuf> xml_data(ifs.rdbuf());
+    //std::ifstream ifs;
+    //ifs.open("test\\cfg_test.cfg", std::ios_base::in);
+    //util::streambuf_container<std::streambuf> xml_data(ifs.rdbuf());
 
     // Some typedefs for convenience
     typedef xml::document<decltype(xml_data)> document;

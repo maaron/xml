@@ -61,9 +61,9 @@ namespace xml
         
         auto xmlchar = any();
 
-        auto namechar = alpha() | digit() | dot | dash | uscore | colon;
+        auto namechar = alpha() | digit() | dot | dash | uscore;
 
-		auto name = (alpha() | uscore | colon) >> *namechar;
+		auto name = (alpha() | uscore) >> *namechar;
 
 		typedef decltype(!(group(name) >> colon) >> name) qname_t;
         struct qname : qname_t
@@ -75,10 +75,8 @@ namespace xml
 
                 std::string prefix()
                 {
-                    auto n = name();
-                    auto colon = n.find(':');
-                    return colon == std::string::npos?
-                        "" : n.substr(0, colon + 1);
+                    auto pre = (*this)[_0].option[_0];
+                    return pre.matched ? get_string(pre) : "";
                 }
 
                 std::string name()
@@ -88,10 +86,7 @@ namespace xml
 
                 std::string local_name()
                 {
-                    auto n = name();
-                    auto colon = n.find(':');
-                    return colon == std::string::npos?
-                        "" : n.substr(colon + 1);
+                    return get_string((*this)[_1]);
                 }
             };
         };
@@ -118,7 +113,6 @@ namespace xml
             };
         };
         
-
 		typedef decltype(ws >> group(qname()) >> eq >> qstring()) attribute_t;
         struct attribute : attribute_t
         {
