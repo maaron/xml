@@ -3,8 +3,6 @@
 
 #include "stdafx.h"
 
-#include <boost\mpl\begin.hpp>
-
 // The extensive use of templates causes this "decorated name length too 
 // long" warning all over the place.  Since we aren't exporting any of these 
 // template instanciations in a library, it is safe to ignore.
@@ -138,6 +136,26 @@ namespace ast_tag_test
     }
 }
 
+#include <Windows.h>
+long long GetTimeMs64()
+{
+    /* Windows */
+    FILETIME ft;
+    LARGE_INTEGER li;
+
+    /* Get the amount of 100 nano seconds intervals elapsed since January 1, 1601 (UTC) and copy it
+    * to a LARGE_INTEGER structure. */
+    GetSystemTimeAsFileTime(&ft);
+    li.LowPart = ft.dwLowDateTime;
+    li.HighPart = ft.dwHighDateTime;
+
+    unsigned long long ret = li.QuadPart;
+    ret -= 116444736000000000LL; /* Convert from file time to UNIX epoch time. */
+    ret /= 10000; /* From 100 nano seconds (10^-7) to 1 millisecond (10^-3) intervals */
+
+    return ret;
+}
+
 int _tmain(int argc, _TCHAR* argv[])
 {
     ast_tag_test::test();
@@ -183,13 +201,13 @@ int _tmain(int argc, _TCHAR* argv[])
     //std::wstring xml_data(L"\uFFFE<?xml encoding='UTF-8'?><nspre:root attribute1=\"value1\">root content part 1<ns:child1>child1 content<grandchild11></grandchild11></ns:child1><child2>child2 content</child2></nspre:root>");
 
     // String stream parsing
-    std::stringstream stream_data("<?xml encoding='UTF-8'?><nspre:root attribute1=\"value1\"  attribute2='value2'>root content part 1<ns:child1>child1 content<grandchild11 a='123' /></ns:child1><child2>child2 content</child2></nspre:root>");
-    util::streambuf_container<std::streambuf> xml_data(stream_data.rdbuf());
+    //std::stringstream stream_data("<?xml encoding='UTF-8'?><nspre:root attribute1=\"value1\"  attribute2='value2'>root content part 1<ns:child1>child1 content<grandchild11 a='123' /></ns:child1><child2>child2 content</child2></nspre:root>");
+    //util::streambuf_container<std::streambuf> xml_data(stream_data.rdbuf());
 
     // File parsing
-    //std::ifstream ifs;
-    //ifs.open("test\\cfg_test.cfg", std::ios_base::in);
-    //util::streambuf_container<std::streambuf> xml_data(ifs.rdbuf());
+    std::ifstream ifs;
+    ifs.open("test\\cfg_test.cfg", std::ios_base::in);
+    util::streambuf_container<std::streambuf> xml_data(ifs.rdbuf());
 
     // Some typedefs for convenience
     typedef xml::document<decltype(xml_data)> document;
@@ -198,10 +216,20 @@ int _tmain(int argc, _TCHAR* argv[])
 
     try
     {
+        auto start = GetTimeMs64();
         document doc(xml_data);
+        auto end = GetTimeMs64();
 
-        std::cout << "document size: " << sizeof(document) << std::endl;
+        std::cout << "Parse time: " << (end - start) << std::endl;
+
+        typedef unicode::unicode_container<decltype(xml_data)>::iterator iterator_t;
+
+        std::cout << "document AST (string iterator) size: " << sizeof(parse::ast_type<xml::parser::element, std::string::iterator>::type) << std::endl;
+        std::cout << "document AST (unicode_iterator) size: " << sizeof(parse::ast_type<xml::parser::document, iterator_t>::type) << std::endl;
         std::cout << "document parser size: " << sizeof(xml::parser::document) << std::endl;
+        std::cout << "element AST size: " << sizeof(parse::ast_type<xml::parser::element, iterator_t>::type) << std::endl;
+        std::cout << "unicode iterator size: " << sizeof(iterator_t) << std::endl;
+        std::cout << "string iterator size: " << sizeof(std::string::iterator) << std::endl;
 
         auto root = doc.root();
 

@@ -316,16 +316,21 @@ namespace unicode
         octet_iterator end;
         value_type c;
         encoding enc;
+        size_t line, column;
 
     public:
-        unicode_iterator()
+        unicode_iterator() : c(std::char_traits<char32_t>::eof()), line(-1), column(-1)
         {
         }
 
-        explicit unicode_iterator (const octet_iterator& from, const octet_iterator& to, encoding e) : current(from), next(from), end(to), enc(e)
+        explicit unicode_iterator(const octet_iterator& from, const octet_iterator& to, encoding e)
+            : current(from), next(from), end(to), enc(e), line(1), column(0)
         {
             get();
         }
+
+        size_t get_line() { return line; }
+        size_t get_column() { return column; }
 
         value_type operator * () const
         {
@@ -420,6 +425,13 @@ namespace unicode
             default:
                 throw std::exception("Unexpected encoding");
             }
+
+            if (c == '\n')
+            {
+                line++;
+                column = 0;
+            }
+            else column++;
         }
     };
 
@@ -434,16 +446,21 @@ namespace unicode
         wchar_iterator end;
         value_type c;
         bool swap_bytes;
+        size_t line;
 
     public:
-        unicode_iterator() : swap_bytes(false), c(std::char_traits<value_type>::eof())
+        unicode_iterator() : swap_bytes(false), c(std::char_traits<value_type>::eof()), line(-1), column(-1)
         {
         }
 
-        explicit unicode_iterator(const wchar_iterator& from, const wchar_iterator& to, bool swap) : current(from), next(from), end(to), swap_bytes(swap)
+        explicit unicode_iterator(const wchar_iterator& from, const wchar_iterator& to, bool swap) 
+            : current(from), next(from), end(to), swap_bytes(swap), line(1), column(0)
         {
             get();
         }
+
+        size_t get_line() { return line; }
+        size_t get_column() { return column; }
 
         value_type operator * () const
         {
@@ -495,6 +512,13 @@ namespace unicode
             if (swap_bytes) c =
                 ((c >> 8) & 0x00FF) |
                 ((c << 8) & 0xFF00);
+
+            if (c == '\n')
+            {
+                line++;
+                column = 0;
+            }
+            else column++;
         }
     };
 

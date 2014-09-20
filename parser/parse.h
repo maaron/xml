@@ -469,7 +469,7 @@ namespace parse
         template <typename iterator_t>
         struct ast
         {
-            typedef typename first_t::ast<iterator_t>::type type;
+            typedef typename first_t::template ast<iterator_t>::type type;
         };
 
         difference() {}
