@@ -475,11 +475,9 @@ namespace xml
         document(container& c) : data(c)
         {
             parser::document p;
-            auto begin = data.begin();
-            auto end = data.end();
-            if (!p.parse_from(begin, end, ast))
+            if (!p.parse(data, ast))
             {
-                throw parse_error(parse::tree::last_match<unicode_iterator>(ast), end);
+                throw parse_error(parse::tree::last_match<unicode_iterator>(ast), data.end());
             }
         }
 
