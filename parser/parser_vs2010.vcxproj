@@ -71,14 +71,14 @@
     <ClCompile Include="test.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="list.h" />
-    <ClInclude Include="parse.h" />
+    <ClInclude Include="parse\list.h" />
+    <ClInclude Include="prase\parse.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="stream_container.h" />
     <ClInclude Include="targetver.h" />
-    <ClInclude Include="tree.h" />
-    <ClInclude Include="unicode.h" />
-    <ClInclude Include="util.h" />
+    <ClInclude Include="parse\tree.h" />
+    <ClInclude Include="unicode\unicode.h" />
+    <ClInclude Include="unicode\util.h" />
     <ClInclude Include="xml.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
