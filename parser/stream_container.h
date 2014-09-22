@@ -1,7 +1,6 @@
 #pragma once
 
 #include <assert.h>
-#include "util.h"
 #include <vector>
 #include <streambuf>
 

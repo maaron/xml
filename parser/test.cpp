@@ -17,7 +17,7 @@
 #include <algorithm>
 
 #include "stream_container.h"
-#include "parse.h"
+#include "parse\parse.h"
 #include "xml.h"
 
 // This demonstrates using a custom AST type to have more type-safe access to 

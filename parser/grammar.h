@@ -2,8 +2,8 @@
 
 #include <assert.h>
 #include <string>
-#include "parse.h"
-#include "unicode.h"
+#include "parse\parse.h"
+#include "unicode\unicode.h"
 
 namespace xml
 {
