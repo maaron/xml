@@ -29,6 +29,10 @@ namespace xml
         template <typename iterator_t>
         parse_exception(iterator_t& next, iterator_t& end)
         {
+            std::ostringstream mstr;
+            mstr << "line " << next.get_line() << ", column " << next.get_column() << ": ";
+            message += mstr.str();
+
             std::string next_chars;
             size_t count = 0;
             auto stop = next;
@@ -68,14 +72,14 @@ namespace xml
         auto dash = u<'-'>();
         auto dot = u<'.'>();
         auto uscore = u<'_'>();
-        
+
         auto xmlchar = any();
 
         auto namechar = alpha() | digit() | dot | dash | uscore;
 
-		auto name = (alpha() | uscore) >> *namechar;
+        auto name = (alpha() | uscore) >> *namechar;
 
-		typedef decltype(!(group(name) >> colon) >> name) qname_t;
+        typedef decltype(!(group(name) >> colon) >> name) qname_t;
         struct qname : qname_t
         {
             template <typename iterator_t>
@@ -101,13 +105,13 @@ namespace xml
             };
         };
 
-		auto ws = +(space | tab | cr | lf);
+        auto ws = +(space | tab | cr | lf);
 
-		auto eq = !ws >> equal >> !ws;
+        auto eq = !ws >> equal >> !ws;
 
         auto content_char = ~(lt | gt);
-		
-		typedef decltype((squote >> *(~squote) >> squote) | (dquote >> *(~dquote) >> dquote)) qstring_t;
+
+        typedef decltype((squote >> *(~squote) >> squote) | (dquote >> *(~dquote) >> dquote)) qstring_t;
         struct qstring : qstring_t
         {
             template <typename iterator_t>
@@ -122,8 +126,8 @@ namespace xml
                 }
             };
         };
-        
-		typedef decltype(ws >> group(qname()) >> eq >> qstring()) attribute_t;
+
+        typedef decltype(ws >> group(qname()) >> eq >> qstring()) attribute_t;
         struct attribute : attribute_t
         {
             template <typename iterator_t>
@@ -143,19 +147,19 @@ namespace xml
             };
         };
 
-		typedef decltype(*attribute()) attribute_list;
+        typedef decltype(*attribute()) attribute_list;
 
-		typedef decltype(lt >> qname() >> attribute_list() >> gt) element_open;
+        typedef decltype(lt >> qname() >> attribute_list() >> gt) element_open;
 
-		typedef decltype(lt >> fslash >> qname() >> gt) element_close;
+        typedef decltype(lt >> fslash >> qname() >> gt) element_close;
 
-		struct element;
+        struct element;
 
         typedef reference<element> element_ref;
 
         typedef decltype(*content_char) textnode;
 
-		typedef decltype(lt >> bang >> dash >> dash >> *(~dash | (dash >> ~dash)) >> dash >> dash >> gt) comment;
+        typedef decltype(lt >> bang >> dash >> dash >> *(~dash | (dash >> ~dash)) >> dash >> dash >> gt) comment;
 
         typedef decltype(element_ref() | comment() | textnode()) childnode;
 
@@ -163,7 +167,7 @@ namespace xml
 
         typedef decltype(lt >> group(qname()) >> !attribute_list() >> !ws >> ((fslash >> gt) | (gt >> element_content() >> element_close()))) element_base;
 
-		struct element : public element_base {};
+        struct element : public element_base {};
 
         typedef decltype(lt >> qmark >> *(xmlchar - (qmark >> gt)) >> qmark >> gt) pi;
 
@@ -176,13 +180,13 @@ namespace xml
         typedef decltype(!xmldecl() >> *misc() >> !(doctypedecl() >> *misc())) prolog;
 
         typedef decltype(group(prolog()) >> element()) document;
-	}
+    }
 
     template <typename container>
     class document;
 
     template <typename unicode_iterator>
-	class element;
+    class element;
 
     template <typename unicode_iterator>
     std::string get_string(parse::tree::ast_base<unicode_iterator>& ast)
@@ -196,7 +200,6 @@ namespace xml
     class attribute
     {
         typedef typename parse::ast_type<grammar::attribute, unicode_iterator>::type ast_type;
-        
         ast_type& ast;
 
     public:
@@ -210,9 +213,9 @@ namespace xml
         }
 
         std::string local_name()
-		{
-			return ast.key().local_name()
-		}
+        {
+            return ast.key().local_name()
+        }
 
         std::string prefix()
         {
@@ -303,13 +306,13 @@ namespace xml
             });
 
             if (it == end()) throw std::exception("Attribute not present");
-            
+
             return (*it).value();
         }
     };
 
     template <typename unicode_iterator>
-    class element_iterator 
+    class element_iterator
         : public std::iterator<std::forward_iterator_tag, element<unicode_iterator> >
     {
         typedef element<unicode_iterator> element_type;
@@ -320,7 +323,7 @@ namespace xml
         ast_iterator ast_end;
 
     public:
-        element_iterator(const ast_iterator& iter, const ast_iterator& end) 
+        element_iterator(const ast_iterator& iter, const ast_iterator& end)
             : ast_iter(iter), ast_end(end)
         {
             get();
@@ -381,7 +384,7 @@ namespace xml
         typedef element<unicode_iterator> element_type;
         typedef element_iterator<unicode_iterator> iterator;
 
-        element_list(ast_type& a) 
+        element_list(ast_type& a)
             : ast(a)
         {
         }
@@ -404,19 +407,19 @@ namespace xml
             });
 
             if (it == end()) throw std::exception("Attribute not present");
-            
+
             return (*it).value();
         }
     };
 
-	template <typename unicode_iterator>
+    template <typename unicode_iterator>
     class element
 	{
         typedef typename parse::ast_type<grammar::element, unicode_iterator>::type ast_type;
 
         ast_type& ast;
 
-	public:
+    public:
         typedef attribute_list<unicode_iterator> attribute_list_type;
         typedef attribute<unicode_iterator> attribute_type;
         typedef element_list<unicode_iterator> element_list_type;
@@ -424,22 +427,22 @@ namespace xml
         attribute_list_type attributes;
         element_list_type elements;
 
-		element(ast_type& a) 
-            : attributes(a[_2].option), 
-            elements(a[_4][_1][_1]), 
+        element(ast_type& a)
+            : attributes(a[_2].option),
+            elements(a[_4][_1][_1]),
             ast(a)
-		{
-		}
+        {
+        }
 
         std::string name()
-		{
-			return ast[_1].group.name();
-		}
+        {
+            return ast[_1].group.name();
+        }
 
-		std::string local_name()
-		{
-			return ast[_1].group.local_name();
-		}
+        std::string local_name()
+        {
+            return ast[_1].group.local_name();
+        }
 
         std::string prefix()
         {
@@ -451,7 +454,7 @@ namespace xml
             std::string ret;
 
             auto& childnodes = ast[_4][_1][_1].matches;
-            
+
             for (auto child = childnodes.begin();
                 child != childnodes.end(); child++)
             {
@@ -460,11 +463,11 @@ namespace xml
             }
             return ret;
         }
-	};
+    };
 
-	template <typename container>
+    template <typename container>
     class document
-	{
+    {
         typedef typename unicode::unicode_container<container> unicode_container;
 	    typedef typename unicode_container::iterator unicode_iterator;
         typedef typename parse::ast_type<grammar::document, unicode_iterator>::type ast_type;
@@ -472,31 +475,23 @@ namespace xml
         unicode_container data;
         ast_type ast;
 
-	public:
+    public:
         typedef element<unicode_iterator> element_type;
 
         document(container& c) : data(c)
-		{
-			grammar::document p;
-            auto begin = data.begin();
-            auto end = data.end();
-			if (!p.parse_from(begin, end, ast))
+        {
+            parser::document p;
+            if (!p.parse(data, ast))
             {
-                //auto last = parse::tree::last_match<
-                    //ast_type::first_t,  ast_type::second_t, 
-                    //ast_type::iterator, char32_t>(ast);
-
-                auto last = parse::tree::last_match<unicode_iterator>(ast);
-
-                throw parse_exception(last, end);
+                throw parse_error(ast, data.end());
             }
         }
 
-		element_type root()
-		{
+        element_type root()
+        {
             return element_type(ast[_1]);
-		}
-	};
+        }
+    };
 
     template <typename container>
     document<container> parse(container& c)
