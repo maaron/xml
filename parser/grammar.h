@@ -118,6 +118,7 @@ namespace xml
 
         auto content_char = ~(lt | gt);
 
+        /*
         typedef decltype((squote >> *(~squote) >> squote) | (dquote >> *(~dquote) >> dquote)) qstring_t;
         struct qstring : qstring_t
         {
@@ -132,6 +133,35 @@ namespace xml
                     else return get_string((*this)[_1][_1]);
                 }
             };
+        };
+        */
+
+        struct qstring : parser<qstring>
+        {
+            template <typename iterator_t>
+            struct ast : parse::tree::ast_base<iterator_t>
+            {
+                typedef ast type;
+
+                std::string value() { return get_string(*this); }
+            };
+
+            template <typename iterator_t>
+            bool parse_internal(iterator_t& it, iterator_t& end, ast<iterator_t>& a)
+            {
+                auto quote = *it++;
+                if (quote == '"')
+                {
+                    while (*it++ != '"' && it != end);
+                    return true;
+                }
+                else if (quote == '\'')
+                {
+                    while (*it++ != '\'' && it != end);
+                    return true;
+                }
+                else return false;
+            }
         };
 
         typedef decltype(ws >> group(qname()) >> eq >> qstring()) attribute_t;

@@ -146,6 +146,12 @@ namespace parse
             return s.start;
         }
 
+        template <typename iterator_t>
+        iterator_t last_match(ast_base<iterator_t>& base)
+        {
+            return base.matched ? base.end : base.start;
+        }
+
         template <typename parser_t, typename stream_t>
 		typename parser_t::template ast< typename stream_t::iterator >::type make_ast(parser_t& p, stream_t& s)
 		{
