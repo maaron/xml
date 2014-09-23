@@ -16,6 +16,12 @@
     <Filter Include="test">
       <UniqueIdentifier>{1a10cbe3-b5dc-44aa-8a17-394c601c909d}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Header Files\parse">
+      <UniqueIdentifier>{82967a4c-b039-4785-9374-546af82967da}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\unicode">
+      <UniqueIdentifier>{86bd06eb-28d4-476e-b2ae-0676a425bcf2}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">
@@ -35,21 +41,6 @@
     <ClInclude Include="stream_container.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="parse\list.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="prase\parse.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="parse\tree.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="unicode\unicode.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="unicode\util.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="grammar.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -58,6 +49,21 @@
     </ClInclude>
     <ClInclude Include="tree.h">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="parse\tree.h">
+      <Filter>Header Files\parse</Filter>
+    </ClInclude>
+    <ClInclude Include="parse\list.h">
+      <Filter>Header Files\parse</Filter>
+    </ClInclude>
+    <ClInclude Include="unicode\unicode.h">
+      <Filter>Header Files\unicode</Filter>
+    </ClInclude>
+    <ClInclude Include="unicode\util.h">
+      <Filter>Header Files\unicode</Filter>
+    </ClInclude>
+    <ClInclude Include="parse\parse.h">
+      <Filter>Header Files\parse</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

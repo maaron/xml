@@ -1,5 +1,6 @@
 #pragma once
 
+#include "unicode\unicode.h"
 #include "grammar.h"
 
 namespace xml
@@ -59,7 +60,7 @@ namespace xml
                     ast a;
 
                     if (!p.parse_from(it, end, a))
-                        throw parse_exception(parse::tree::last_match(a), end);
+                        throw parse_exception(a, end);
 
                     if (a[_1].matched)
                     {
@@ -307,21 +308,23 @@ namespace xml
             // Returns true only if there are no more attributes in the 
             // list.  Conceptually, the current object is associated with the 
             // end of the open tag of an element.
-            bool is_end() { return _name.size() > 0; }
+            bool is_end() { return _name.size() == 0; }
         };
 
         template <typename container_t>
         class document
         {
-            typedef typename container_t::iterator iterator_t;
+            typedef typename unicode::unicode_container<container_t> unicode_container;
+	        typedef typename unicode_container::iterator iterator_t;
             
+            unicode_container data;
             iterator_t it, end;
 
         public:
             typedef element<iterator_t> element_type;
 
             document(container_t& c)
-                : it(c.begin()), end(c.end())
+                : data(c), it(data.begin()), end(data.end())
             {
                 grammar::prolog p;
                 typename parse::ast_type<grammar::prolog, iterator_t>::type a;
