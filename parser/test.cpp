@@ -13,6 +13,7 @@
 #include <sstream>
 #include <iostream>
 #include <algorithm>
+#include <iterator>
 
 #include "stream_container.h"
 #include "parse\parse.h"
@@ -249,16 +250,26 @@ int _tmain(int argc, _TCHAR* argv[])
     // File parsing
     std::ifstream ifs;
     ifs.open("test\\cfg_test.cfg", std::ios::in | std::ios::binary);
-    util::streambuf_container<std::streambuf> xml_data(ifs.rdbuf());
+    std::string xml_data(std::istreambuf_iterator<char>(ifs.rdbuf()), std::istreambuf_iterator<char>());
+    //util::streambuf_container<std::streambuf> xml_data(ifs.rdbuf());
+
+    long long t1, t2;
 
     /* XML Tree Test */
-    auto t1 = GetTimeMs64();
+    /*
+    t1 = GetTimeMs64();
     xml::tree::document doc(xml_data);
-    auto t2 = GetTimeMs64();
-    std::cout << "parse time: " << t2 - t1 << std::endl;
+    t2 = GetTimeMs64();
+    std::cout << "tree parse time: " << t2 - t1 << std::endl;
+    */
 
     /* XML Reader Test */
-    //read_dump(xml_data);
+    std::cout.setstate(std::ios_base::badbit);
+    t1 = GetTimeMs64();
+    read_dump(xml_data);
+    t2 = GetTimeMs64();
+    std::cout.clear();
+    std::cout << "reader parse time: " << t2 - t1 << std::endl;
 
     /* XML Tree Test */
     /*

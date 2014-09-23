@@ -3,6 +3,35 @@
 #include "unicode\unicode.h"
 #include "grammar.h"
 
+#define WIN32_LEAN_AND_MEAN
+#include <Windows.h>
+
+INT64 node_ctr_low = MAXINT64;
+INT64 node_ctr_high = MININT64;
+
+struct profile
+{
+    LARGE_INTEGER t1;
+    long long& low;
+    long long& high;
+
+    profile(long long& l, long long& h) : high(h), low(l)
+    {
+        QueryPerformanceCounter(&t1);
+    }
+
+    ~profile()
+    {
+        LARGE_INTEGER t2;
+        QueryPerformanceCounter(&t2);
+
+        auto t = t2.QuadPart - t1.QuadPart;
+
+        if (t < low) low = t;
+        if (t > high) high = t;
+    }
+};
+
 namespace xml
 {
     // This namespace contains classes that can be used to parse XML data in 
@@ -50,6 +79,8 @@ namespace xml
             node(iterator_t i, iterator_t e)
                 : it(i), end(e)
             {
+                profile(node_ctr_low, node_ctr_high);
+
                 typedef decltype( group(lt >> fslash >> group(qname()) >> gt) | ((lt >> group(qname())) | comment() | textnode()) ) parser;
                 typedef typename parse::ast_type<parser, iterator_t>::type ast;
 
@@ -308,7 +339,7 @@ namespace xml
             // Returns true only if there are no more attributes in the 
             // list.  Conceptually, the current object is associated with the 
             // end of the open tag of an element.
-            bool is_end() { return _name.size() == 0; }
+            bool is_end() { return parser_state == end_of_attributes || parser_state == end_of_element; }
         };
 
         template <typename container_t>
