@@ -616,4 +616,11 @@ namespace unicode
         }
     };
 
+    // Returns a UTF-8 encoded string
+    template <typename iterator_t>
+    std::string get_string(iterator_t start, iterator_t end);
+
+    // Returns a UTF-16 encoded string
+    template <typename iterator_t>
+    std::wstring get_wstring(iterator_t start, iterator_t end);
 }

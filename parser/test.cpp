@@ -18,7 +18,7 @@
 
 #include "stream_container.h"
 #include "parse\parse.h"
-#include "xml.h"
+#include "reader.h"
 
 // This demonstrates using a custom AST type to have more type-safe access to 
 // elements.  Instead of using the operator[] overloads directly, these AST 
@@ -138,6 +138,47 @@ namespace ast_tag_test
     }
 }
 
+template <typename container_t>
+void read_dump(container_t& c)
+{
+    xml::reader::document<container_t> doc(c);
+    auto root = doc.root();
+    dump_element(root, "");
+}
+
+template <typename iterator_t>
+void dump_element(xml::reader::element<iterator_t>& e, const std::string& indent)
+{
+    std::cout << indent << "element: " << e.name() << std::endl;
+    std::cout << indent << "attributes: ";
+
+    xml::reader::attribute<iterator_t> a = e.next_attribute();
+    if (a.is_end()) std::cout << "(none)" << std::endl;
+    else
+    {
+        std::cout << std::endl;
+
+        for (; !a.is_end(); a = a.next_attribute())
+            std::cout << indent << "  " << a.name() << "=" << a.value() << std::endl;
+    }
+
+    auto nextIndex = indent + "  ";
+    std::cout << indent << "childnodes: ";
+    xml::reader::node<iterator_t> child = a.next_child();
+    if (child.is_end()) std::cout << "(none)" << std::endl;
+    else
+    {
+        std::cout << std::endl;
+        for (; !child.is_end(); child = child.next_sibling())
+        {
+            if (child.is_text())
+                std::cout << nextIndex << "textnode: " << child.text() << std::endl;
+            else
+                dump_element(child.element(), nextIndex);
+        }
+    }
+}
+
 int _tmain(int argc, _TCHAR* argv[])
 {
     ast_tag_test::test();
@@ -191,6 +232,12 @@ int _tmain(int argc, _TCHAR* argv[])
     //ifs.open("test\\cfg_test.cfg", std::ios_base::in);
     //util::streambuf_container<std::streambuf> xml_data(ifs.rdbuf());
 
+    /* XML Reader Test */
+    // Some typedefs for convenience
+    read_dump(xml_data);
+
+    /* XML Tree Test */
+    /*
     // Some typedefs for convenience
     typedef xml::document<decltype(xml_data)> document;
     typedef document::element_type element;
@@ -240,10 +287,11 @@ int _tmain(int argc, _TCHAR* argv[])
 
         auto hasAttribs = gchild.attributes.begin() != gchild.attributes.end();
     }
-    catch (xml::parse_error& e)
+    catch (xml::parse_exception& e)
     {
         std::cout << e.what() << std::endl;
     }
+    */
 
     return 0;
 }
