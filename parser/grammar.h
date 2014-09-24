@@ -82,35 +82,9 @@ namespace xml
 
         auto xmlchar = any();
 
-        auto namechar = alpha() | digit() | dot | dash | uscore;
+        auto namechar = alpha() | digit() | dot | dash | uscore | colon;
 
         auto name = (alpha() | uscore) >> *namechar;
-
-        typedef decltype(!(group(name) >> colon) >> name) qname_t;
-        struct qname : qname_t
-        {
-            template <typename iterator_t>
-            struct ast : qname_t::ast<iterator_t>::type
-            {
-                typedef ast type;
-
-                std::string prefix()
-                {
-                    auto pre = (*this)[_0].option[_0];
-                    return pre.matched ? get_string(pre) : "";
-                }
-
-                std::string name()
-                {
-                    return get_string(*this);
-                }
-
-                std::string local_name()
-                {
-                    return get_string((*this)[_1]);
-                }
-            };
-        };
 
         auto ws = +(space | tab | cr | lf);
 
@@ -143,7 +117,12 @@ namespace xml
             {
                 typedef ast type;
 
-                std::string value() { return get_string(*this); }
+                std::string v;
+
+                std::string value()
+                {
+                    return v;
+                }
             };
 
             template <typename iterator_t>
@@ -152,19 +131,23 @@ namespace xml
                 auto quote = *it++;
                 if (quote == '"')
                 {
+                    auto value_start = it;
                     while (*it++ != '"' && it != end);
+                    a.v = get_string(value_start, it);
                     return true;
                 }
                 else if (quote == '\'')
                 {
+                    auto value_start = it;
                     while (*it++ != '\'' && it != end);
+                    a.v = get_string(value_start, it);
                     return true;
                 }
                 else return false;
             }
         };
 
-        typedef decltype(ws >> group(qname()) >> eq >> qstring()) attribute_t;
+        typedef decltype(ws >> group(name) >> eq >> qstring()) attribute_t;
         struct attribute : attribute_t
         {
             template <typename iterator_t>
@@ -177,18 +160,18 @@ namespace xml
                     return (*this)[_3];
                 }
 
-                typename qname::ast<iterator_t>::type& key()
+                typename std::string key()
                 {
-                    return (*this)[_1].group;
+                    return get_string((*this)[_1].group);
                 }
             };
         };
 
         typedef decltype(*attribute()) attribute_list;
 
-        typedef decltype(lt >> qname() >> attribute_list() >> gt) element_open;
+        typedef decltype(lt >> group(name) >> attribute_list() >> gt) element_open;
 
-        typedef decltype(lt >> fslash >> qname() >> gt) element_close;
+        typedef decltype(lt >> fslash >> group(name) >> gt) element_close;
 
         struct element;
 
@@ -202,7 +185,7 @@ namespace xml
 
         typedef decltype(*(childnode())) element_content;
 
-        typedef decltype(lt >> group(qname()) >> !attribute_list() >> !ws >> ((fslash >> gt) | (gt >> element_content() >> element_close()))) element_base;
+        typedef decltype(lt >> group(name) >> !attribute_list() >> !ws >> ((fslash >> gt) | (gt >> element_content() >> element_close()))) element_base;
 
         struct element : public element_base {};
 

@@ -180,7 +180,7 @@ void dump_element(xml::reader::element<iterator_t>& e, const std::string& indent
 }
 
 #include <Windows.h>
-long long GetTimeMs64()
+long long time()
 {
     /* Windows */
     FILETIME ft;
@@ -192,11 +192,7 @@ long long GetTimeMs64()
     li.LowPart = ft.dwLowDateTime;
     li.HighPart = ft.dwHighDateTime;
 
-    unsigned long long ret = li.QuadPart;
-    ret -= 116444736000000000LL; /* Convert from file time to UNIX epoch time. */
-    ret /= 10000; /* From 100 nano seconds (10^-7) to 1 millisecond (10^-3) intervals */
-
-    return ret;
+    return li.QuadPart;
 }
 
 int _tmain(int argc, _TCHAR* argv[])
@@ -255,21 +251,32 @@ int _tmain(int argc, _TCHAR* argv[])
 
     long long t1, t2;
 
+    /* stream performance test */
+#if 0
+    unicode::unicode_container<std::string> uc(xml_data);
+    t1 = time();
+    for (auto i = uc.begin(); i != uc.end(); i++);
+    t2 = time();
+    std::cout << "stream iterate time: " << double(t2 - t1)/10000 << std::endl;
+#endif
+
     /* XML Tree Test */
-    /*
-    t1 = GetTimeMs64();
+#if 1
+    t1 = time();
     xml::tree::document doc(xml_data);
-    t2 = GetTimeMs64();
-    std::cout << "tree parse time: " << t2 - t1 << std::endl;
-    */
+    t2 = time();
+    std::cout << "tree parse time: " << double(t2 - t1)/10000 << std::endl;
+#endif
 
     /* XML Reader Test */
+#if 0
     std::cout.setstate(std::ios_base::badbit);
-    t1 = GetTimeMs64();
+    t1 = time();
     read_dump(xml_data);
-    t2 = GetTimeMs64();
+    t2 = time();
     std::cout.clear();
     std::cout << "reader parse time: " << t2 - t1 << std::endl;
+#endif
 
     /* XML Tree Test */
     /*

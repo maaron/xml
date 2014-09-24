@@ -646,8 +646,13 @@ namespace unicode
     };
 
     // Returns a UTF-8 encoded string
-    template <typename iterator_t>
-    std::string get_string(iterator_t start, iterator_t end);
+    template <typename octet_iterator>
+    std::string get_string(unicode_iterator<octet_iterator> start, unicode_iterator<octet_iterator> end)
+    {
+        std::string ret;
+        utf8::utf32to8(start, end, std::back_inserter(ret));
+        return ret;
+    }
 
     // Returns a UTF-16 encoded string
     template <typename iterator_t>

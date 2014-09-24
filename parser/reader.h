@@ -81,7 +81,7 @@ namespace xml
             {
                 profile(node_ctr_low, node_ctr_high);
 
-                typedef decltype( group(lt >> fslash >> group(qname()) >> gt) | ((lt >> group(qname())) | comment() | textnode()) ) parser;
+                typedef decltype( group(lt >> fslash >> group(name) >> gt) | ((lt >> group(name)) | comment() | textnode()) ) parser;
                 typedef typename parse::ast_type<parser, iterator_t>::type ast;
 
                 parser p;
@@ -242,7 +242,7 @@ namespace xml
             attribute(iterator_t i, iterator_t e)
                 : it(i), end(e)
             {
-                typedef decltype( (!ws >> group(qname()) >> eq >> qstring()) | (!ws >> !fslash >> gt) ) attribute_parser;
+                typedef decltype( (!ws >> group(grammar::name) >> eq >> qstring()) | (!ws >> !fslash >> gt) ) attribute_parser;
                 typedef typename parse::ast_type<attribute_parser, iterator_t>::type attribute_ast;
 
                 attribute_parser p;

@@ -13,6 +13,12 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="Header Files\parse">
+      <UniqueIdentifier>{ec87dabe-caf8-43b7-8929-71a7fd1c7821}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\unicode">
+      <UniqueIdentifier>{c78d0342-14d7-414d-8c22-a782fd801215}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <None Include="ReadMe.txt" />
@@ -24,22 +30,34 @@
     <ClInclude Include="targetver.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="parse.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="list.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="tree.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="xml.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="unicode.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="stream_container.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="reader.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="unicode\unicode.h">
+      <Filter>Header Files\unicode</Filter>
+    </ClInclude>
+    <ClInclude Include="unicode\utf8.h">
+      <Filter>Header Files\unicode</Filter>
+    </ClInclude>
+    <ClInclude Include="unicode\util.h">
+      <Filter>Header Files\unicode</Filter>
+    </ClInclude>
+    <ClInclude Include="parse\list.h">
+      <Filter>Header Files\parse</Filter>
+    </ClInclude>
+    <ClInclude Include="parse\parse.h">
+      <Filter>Header Files\parse</Filter>
+    </ClInclude>
+    <ClInclude Include="parse\tree.h">
+      <Filter>Header Files\parse</Filter>
+    </ClInclude>
+    <ClInclude Include="grammar.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
