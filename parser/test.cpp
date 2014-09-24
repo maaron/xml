@@ -31,7 +31,7 @@
 // A downside to this method is that we seem to get some strange errors in 
 // xlocnum.h, associated with bringing the parse::operators namespace in to 
 // scope alongside the accessors.
-
+#if 0
 namespace custom_ast_test
 {
     using namespace parse::terminals;
@@ -109,7 +109,9 @@ namespace custom_ast_test
         auto& c1c3 = c1.get_three();
     }
 }
+#endif
 
+#if 0
 namespace ast_tag_test
 {
     using namespace parse;
@@ -137,6 +139,7 @@ namespace ast_tag_test
         bool valid = p.parse(data, ast);
     }
 }
+#endif
 
 template <typename container_t>
 void read_dump(container_t& c)
@@ -195,11 +198,28 @@ long long time()
     return li.QuadPart;
 }
 
+#include "parse\parse2.h"
+
 int _tmain(int argc, _TCHAR* argv[])
 {
-    ast_tag_test::test();
+#if 1
+    /* Pruned AST test */
+    {
+        using namespace parse2;
+        using namespace parse2::operators;
 
-    /* Unicode tests
+        auto a = constant<'a'>();
+        auto b = constant<'b'>();
+
+        auto p = a[0] >> b[1];
+        std::identity<decltype(p)>::type::get_ast<std::string::iterator>::type ast;
+        //auto ast = parse2::make_ast<std::string::iterator>(p);
+
+        std::cout << std::endl;
+    }
+#endif
+
+  /* Unicode tests
   //std::string v = "\xEF\xBB\xBFthis is a UTF8-encoded string with a BOM.";
   //std::string v = "this is a UTF8-encoded string without a BOM.";
   std::wstring wv(L"\uFEFFthis is a UTF16-encoded string with a BOM.");
@@ -261,7 +281,7 @@ int _tmain(int argc, _TCHAR* argv[])
 #endif
 
     /* XML Tree Test */
-#if 1
+#if 0
     t1 = time();
     xml::tree::document doc(xml_data);
     t2 = time();

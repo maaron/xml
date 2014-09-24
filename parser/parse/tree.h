@@ -66,7 +66,6 @@ namespace parse
         template <typename token_t, typename iterator_t>
         struct single : public tree::ast_base<iterator_t>
         {
-            token_t token;
         };
 
         template <typename parser_t, typename iterator_t>
