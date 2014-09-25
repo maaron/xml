@@ -211,9 +211,28 @@ int _tmain(int argc, _TCHAR* argv[])
         auto a = constant<'a'>();
         auto b = constant<'b'>();
 
-        auto p = a[0] >> b[1];
-        std::identity<decltype(p)>::type::get_ast<std::string::iterator>::type ast;
+        auto acap = a[parse2::_0];
+        auto p = a >> b[parse2::_1] >> a;
+
+        typedef decltype(a) a_type;
+        typedef decltype(p) p_type;
+        typedef decltype(acap) acap_type;
+
+        p_type::left_type::capture_type::get_ast<std::string::iterator>::type left_ast;
+        p_type::right_type::capture_type::get_ast<std::string::iterator>::type right_ast;
+        p_type::capture_type::get_ast<std::string::iterator>::type ast;
         //auto ast = parse2::make_ast<std::string::iterator>(p);
+
+        typedef p_type::left_type::capture_type left_capture_type;
+        typedef p_type::right_type::capture_type right_capture_type;
+
+        acap_type::capture_type acapcap;
+
+        left_capture_type lcap;
+        right_capture_type rcap;
+        auto id = sequence_impl<p_type::left_type::capture_type, p_type::right_type::capture_type>::id;
+
+        p_type::impl_type::capture_type asdf;
 
         std::cout << std::endl;
     }
