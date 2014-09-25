@@ -65,14 +65,38 @@ namespace parse2
         };
     };
 
+    // This type, along with the is_list struct below are used to identify 
+    // ast_list templates.
+    struct ast_list_tag {};
+
+    template <typename capture_t>
+    struct is_list
+    {
+    private:
+        typedef typename capture_t::template get_ast<int>::type ast_type;
+
+        typedef char                      yes;
+        typedef struct { char array[2]; } no;
+
+        template<typename C> static std::enable_if<std::is_same<typename C::tag, ast_list_tag>::value, yes> test(typename C::tag*);
+        template<typename C> static no  test(...);
+    
+    public:
+        static const bool value = sizeof(test<ast_type>(0)) == sizeof(yes);
+    };
+
+    template <typename capture_t1, typename capture_t2, typename enable = void>
+    struct ast_list;
+
     template <typename capture_t1, typename capture_t2>
-    struct ast_list
+    struct ast_list<capture_t1, capture_t2, typename std::enable_if<!is_list<capture_t1>::value>::type>
     {
         template <typename iterator_t>
         struct impl
         {
             typedef typename capture_t1::template get_ast<iterator_t>::type left_t;
             typedef typename capture_t2::template get_ast<iterator_t>::type right_t;
+            typedef ast_list_tag tag;
             
             left_t left;
             right_t right;
@@ -88,19 +112,23 @@ namespace parse2
         };
     };
 
-    template <typename capture_t1, typename capture_t2, typename capture_t3>
-    struct ast_list<ast_list<capture_t1, capture_t2>, capture_t3>
+    template <typename t>
+    struct always_false { enum { value = false }; };
+
+    template <typename capture_t1, typename capture_t2>
+    struct ast_list<capture_t1, capture_t2, typename std::enable_if<is_list<capture_t1>::value>::type>
     {
         template <typename iterator_t>
         struct impl
         {
-            typedef typename ast_list<capture_t1, capture_t2>::template impl<iterator_t> left_t;
-            typedef typename capture_t3::template get_ast<iterator_t>::type right_t;
+            typedef typename capture_t1::template get_ast<iterator_t>::type left_t;
+            typedef typename capture_t2::template get_ast<iterator_t>::type right_t;
+            typedef ast_list_tag tag;
 
             left_t left;
             right_t right;
 
-            static const size_t size = v::size + 1;
+            static const size_t size = left_t::size + 1;
 
 		    template <size_t i>
 		    struct elem

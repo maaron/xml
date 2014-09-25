@@ -212,7 +212,7 @@ int _tmain(int argc, _TCHAR* argv[])
         auto b = constant<'b'>();
 
         auto acap = a[parse2::_0];
-        auto p = a >> b[parse2::_1] >> a;
+        auto p = a[parse2::_0] >> b[parse2::_1] >> a[parse2::_2] >> b >> a >> b[parse2::_3];
 
         typedef decltype(a) a_type;
         typedef decltype(p) p_type;
@@ -233,6 +233,13 @@ int _tmain(int argc, _TCHAR* argv[])
         auto id = sequence_impl<p_type::left_type::capture_type, p_type::right_type::capture_type>::id;
 
         p_type::impl_type::capture_type asdf;
+
+        auto& c0 = ast[parse2::_0];
+        auto& c1 = ast[parse2::_1];
+        auto& c2 = ast[parse2::_2];
+
+        typedef decltype(ast) ast_type;
+        auto ast_size = ast_type::size;
 
         std::cout << std::endl;
     }
