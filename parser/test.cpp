@@ -202,6 +202,8 @@ long long time()
 
 #include "parse\parse2.h"
 
+template <typename t> struct map_f { typedef t* type; };
+
 int _tmain(int argc, _TCHAR* argv[])
 {
 #if 1
@@ -251,6 +253,11 @@ int _tmain(int argc, _TCHAR* argv[])
         l3.at(_4) = 44;
         l3.at(_5) = 55;
         l3.at(_6) = 66;
+
+        typedef map<l3_t, std::add_pointer>::type l4_t;
+        l3_t::head_type tmp1;
+        std::add_pointer<l3_t::head_type>::type tmp;
+        l4_t l4;
 
         std::cout << std::endl;
     }
