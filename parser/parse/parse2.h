@@ -1,21 +1,10 @@
 #pragma once
 
+#include "list2.h"
+
 namespace parse2
 {
-    template <size_t i>
-	struct index : std::integral_constant<size_t, i> {};
-
-    static index<-1> _;
-    static index<0> _0;
-	static index<1> _1;
-	static index<2> _2;
-	static index<3> _3;
-	static index<4> _4;
-	static index<5> _5;
-	static index<6> _6;
-	static index<7> _7;
-	static index<8> _8;
-	static index<9> _9;
+    using namespace placeholders;
 
     template <template <typename> class ast_t, size_t i>
     struct captured
@@ -201,24 +190,6 @@ namespace parse2
     // Both branches are captured, as well as the sequence.
     template <typename t1_capture_t, typename t2_capture_t>
     struct sequence_impl;
-
-    /*
-    template <
-        template <typename> class t1_ast_t, size_t t1_i, 
-        template <typename> class t2_ast_t, size_t t2_i, 
-        size_t i>
-    struct sequence_impl<captured<t1_ast_t, t1_i>, captured<t2_ast_t, t2_i>, i>
-    {
-        typedef captured<ast_group<ast_list<t1_ast_t, t2_ast_t>::impl>::impl, i> capture_type;
-
-        template <typename iterator_t>
-        static bool parse_internal(iterator_t& start, iterator_t& end, typename ast_group<ast_list<t1_ast_t, t2_ast_t>::impl>::template impl<iterator_t>::type& a)
-        {
-            return t1::parse_from(start, end, a.ast.left) &&
-                t2::parse_from(start, end, a.ast.right);
-        }
-    };
-    */
 
     // Both branches are captured, but not the sequence.
     template <
