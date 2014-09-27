@@ -60,6 +60,9 @@
     <ClInclude Include="grammar.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="parse\list2.h">
+      <Filter>Header Files\parse</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">

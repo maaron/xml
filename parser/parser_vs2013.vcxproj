@@ -80,6 +80,7 @@
   <ItemGroup>
     <ClInclude Include="grammar.h" />
     <ClInclude Include="parse\list.h" />
+    <ClInclude Include="parse\list2.h" />
     <ClInclude Include="parse\parse.h" />
     <ClInclude Include="parse\tree.h" />
     <ClInclude Include="reader.h" />
