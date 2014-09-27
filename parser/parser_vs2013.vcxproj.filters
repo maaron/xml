@@ -63,6 +63,12 @@
     <ClInclude Include="parse\list2.h">
       <Filter>Header Files\parse</Filter>
     </ClInclude>
+    <ClInclude Include="parse\parse2.h">
+      <Filter>Header Files\parse</Filter>
+    </ClInclude>
+    <ClInclude Include="parse\placeholders.h">
+      <Filter>Header Files\parse</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">

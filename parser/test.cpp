@@ -20,6 +20,8 @@
 #include "tree.h"
 #include "reader.h"
 
+#include "parse\list2.h"
+
 // This demonstrates using a custom AST type to have more type-safe access to 
 // elements.  Instead of using the operator[] overloads directly, these AST 
 // classes add named accessor methods to retrieve the various parts of the 
@@ -200,19 +202,22 @@ long long time()
 
 #include "parse\parse2.h"
 
+template <typename t> struct map_f { typedef t* type; };
+
 int _tmain(int argc, _TCHAR* argv[])
 {
 #if 1
     /* Pruned AST test */
     {
+        using namespace placeholders;
         using namespace parse2;
         using namespace parse2::operators;
 
         auto a = constant<'a'>();
         auto b = constant<'b'>();
 
-        auto acap = a[parse2::_0];
-        auto p = a[parse2::_0] >> b[parse2::_1] >> (a[parse2::_2] >> b >> a >> b[parse2::_3]);
+        auto acap = a[_0];
+        auto p = a[_0] >> b[_1] >> (a[_2] >> b >> a >> b[_3]);
 
         typedef decltype(a) a_type;
         typedef decltype(p) p_type;
@@ -221,25 +226,39 @@ int _tmain(int argc, _TCHAR* argv[])
         p_type::left_type::capture_type::get_ast<std::string::iterator>::type left_ast;
         p_type::right_type::capture_type::get_ast<std::string::iterator>::type right_ast;
         p_type::capture_type::get_ast<std::string::iterator>::type ast;
-        //auto ast = parse2::make_ast<std::string::iterator>(p);
 
-        typedef p_type::left_type::capture_type left_capture_type;
-        typedef p_type::right_type::capture_type right_capture_type;
-
-        acap_type::capture_type acapcap;
-
-        left_capture_type lcap;
-        right_capture_type rcap;
-        auto id = sequence_impl<p_type::left_type::capture_type, p_type::right_type::capture_type>::id;
-
-        p_type::impl_type::capture_type asdf;
-
-        auto& c0 = ast[parse2::_0];
-        auto& c1 = ast[parse2::_1];
-        auto& c2 = ast[parse2::_2];
+        auto& c0 = ast[_0];
+        auto& c1 = ast[_1];
+        auto& c2 = ast[_2];
 
         typedef decltype(ast) ast_type;
         auto ast_size = ast_type::size;
+
+        using namespace list;
+        typedef push_back<push_back<make_list<
+            1, int>::type, 
+            2, char>::type,
+            3, bool>::type l1_t;
+
+        typedef push_front<push_front<make_list<
+            6, short>::type, 
+            5, long>::type,
+            4, double>::type l2_t;
+
+        typedef concat<l1_t, l2_t>::type l3_t;
+        l3_t l3;
+
+        l3.at(_1) = 11;
+        l3.at(_2) = 22;
+        l3.at(_3) = true;
+        l3.at(_4) = 44;
+        l3.at(_5) = 55;
+        l3.at(_6) = 66;
+
+        typedef map<l3_t, std::add_pointer>::type l4_t;
+        l3_t::head_type tmp1;
+        std::add_pointer<l3_t::head_type>::type tmp;
+        l4_t l4;
 
         std::cout << std::endl;
     }
