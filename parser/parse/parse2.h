@@ -1,6 +1,6 @@
 #pragma once
 
-#include "list2.h"
+#include "tree2.h"
 
 namespace parse2
 {
@@ -54,126 +54,42 @@ namespace parse2
         };
     };
 
-    // This type, along with the is_list struct below are used to identify 
-    // ast_list templates.
-    struct ast_list_tag {};
-
-    template <typename capture_t>
-    struct is_list
-    {
-    private:
-        typedef typename capture_t::template get_ast<int>::type ast_type;
-
-        typedef char                      yes;
-        typedef struct { char array[2]; } no;
-
-        template<typename C> static std::enable_if<std::is_same<typename C::tag, ast_list_tag>::value, yes> test(typename C::tag*);
-        template<typename C> static no  test(...);
-    
-    public:
-        static const bool value = sizeof(test<ast_type>(0)) == sizeof(yes);
-    };
-
-    template <typename capture_t1, typename capture_t2, typename enable = void>
-    struct ast_list;
-
-    template <typename capture_t1, typename capture_t2>
-    struct ast_list<capture_t1, capture_t2, typename std::enable_if<!is_list<capture_t1>::value>::type>
-    {
-        template <typename iterator_t>
-        struct impl
-        {
-            typedef typename capture_t1::template get_ast<iterator_t>::type left_t;
-            typedef typename capture_t2::template get_ast<iterator_t>::type right_t;
-            typedef ast_list_tag tag;
-            
-            left_t left;
-            right_t right;
-
-            static const size_t size = 2;
-
-		    template <size_t i> struct elem;
-		    template <> struct elem<0> { typedef left_t type; };
-		    template <> struct elem<1> { typedef right_t type; };
-
-		    left_t& operator[](const index<0>&) { return left; }
-		    right_t& operator[](const index<1>&) { return right; }
-        };
-    };
-
     template <typename t>
     struct always_false { enum { value = false }; };
-
-    template <typename capture_t1, typename capture_t2>
-    struct ast_list<capture_t1, capture_t2, typename std::enable_if<is_list<capture_t1>::value>::type>
-    {
-        template <typename iterator_t>
-        struct impl
-        {
-            typedef typename capture_t1::template get_ast<iterator_t>::type left_t;
-            typedef typename capture_t2::template get_ast<iterator_t>::type right_t;
-            typedef ast_list_tag tag;
-
-            left_t left;
-            right_t right;
-
-            static const size_t size = left_t::size + 1;
-
-		    template <size_t i>
-		    struct elem
-		    {
-			    static_assert(i < size, "Element type index out of range");
-			    typedef typename left_t::template elem<i>::type type;
-		    };
-
-		    template <>
-		    struct elem<size - 1> { typedef right_t type; };
-
-		    right_t& operator[](const index<size - 1>&) { return right; }
-
-		    template <size_t i>
-		    typename elem<i>::type& operator[](const index<i>& idx)
-		    {
-			    static_assert(i < size, "Element index out of range");
-			    return left[idx];
-		    }
-        };
-	};
 
     template <typename parser_t, size_t i>
     struct capture_group;
 
     template <typename parser_t, typename iterator_t>
-    struct has_ast
+    struct parser_ast
     {
-        static const bool value = std::is_same<
-            typename parser_t::template get_ast<iterator_t>::type,
-            void>::value;
+        typedef typename parser_t::template get_ast<iterator_t>::type type;
     };
 
     template <typename derived_t>
     struct parser
     {
-        static const bool is_captured = true;
         typedef derived_t parser_type;
-        typedef captured<ast_t, i> capture_type;
-
-        // Default AST type is void
-        template <typename iterator_t> get_ast { typedef void type; };
 
         template <typename iterator_t>
-        static typename std::enable_if<typename has_ast<derived_t, iterator_t>::value, bool>::type
-            parse_from(iterator_t& it, iterator_t& end, typename capture_type::template get_ast<iterator_t>::type& a)
+        struct get_ast { typedef void type; };
+
+        // 3-parameter parse_from() only valid if the parser is captured.
+        template <typename iterator_t, typename ast_t>
+        static bool parse_from(iterator_t& it, iterator_t& end, ast_t& a)
         {
             return derived_t::parse_internal(it, end, a);
         }
 
+        // 2-parameter parse_from() always available for parsing without 
+        // generating an AST.
         template <typename iterator_t>
         static bool parse_from(iterator_t& it, iterator_t& end)
         {
             return derived_t::parse_internal(it, end);
         }
 
+        // Operator overload for capturing parser result into an AST.
         template <size_t i>
         capture_group<derived_t, i> operator[] (const index<i>& ph)
         {
@@ -181,69 +97,79 @@ namespace parse2
         }
     };
 
-    // Both branches are captured, as well as the sequence.
-    template <typename t1_capture_t, typename t2_capture_t>
-    struct sequence_impl;
+    template <typename t1, typename t2, typename enable = void>
+    struct sequence { static_assert(always_false<enable>::value, "wht"); };
 
-    // Both branches are captured, but not the sequence.
-    template <
-        template <typename> class t1_ast_t, size_t t1_i, 
-        template <typename> class t2_ast_t, size_t t2_i>
-    struct sequence_impl<captured<t1_ast_t, t1_i>, captured<t2_ast_t, t2_i> >
+    template <typename t1, typename t2>
+    struct sequence<t1, t2, typename std::enable_if<t1::is_captured && t2::is_captured>::type >
+        : parser<sequence<t1, t2> >
     {
-        static const int id = 1;
-        typedef captured<t1_ast_t, t1_i> t1_capture_type;
-        typedef captured<t2_ast_t, t2_i> t2_capture_type;
-        typedef captured<ast_list<t1_capture_type, t2_capture_type>::impl, -1> capture_type;
+        static const int sequencetype = 1;
+        static const bool is_captured = true;
 
         template <typename iterator_t>
-        static bool parse_internal(iterator_t& start, iterator_t& end, typename ast_list<t1_capture_type, t2_capture_type>::template impl<iterator_t>::type& a)
+        struct get_ast
         {
-            return t1::parse_from(start, end, a.left) &&
-                t2::parse_from(start, end, a.right);
-        }
-    };
-
-    // The right branch is captured, but not the sequence.
-    template <
-        size_t t1_i, 
-        template <typename> class t2_ast_t, size_t t2_i>
-    struct sequence_impl<captured<void_ast, t1_i>, captured<t2_ast_t, t2_i> >
-    {
-        static const int id = 2;
-        typedef captured<t2_ast_t, t2_i> capture_type;
+            typedef typename parser_ast<t1, iterator_t>::type t1_ast_type;
+            typedef typename parser_ast<t2, iterator_t>::type t2_ast_type;
+            typedef typename ast::join<t1_ast_type, t2_ast_type>::type type;
+        };
 
         template <typename iterator_t>
-        static bool parse_internal(iterator_t& start, iterator_t& end, typename t2_ast_t<iterator_t>::type& a)
+        static bool parse_internal(iterator_t& start, iterator_t& end)
         {
             return t1::parse_from(start, end) &&
-                t2::parse_from(start, end, a);
+                t2::parse_from(start, end);
+        }
+
+        template <typename iterator_t>
+        static bool parse_internal(iterator_t& start, iterator_t& end, typename get_ast<iterator_t>::type& a)
+        {
+            return t1::parse_from(start, end, a.left()) &&
+                t2::parse_from(start, end, a.right());
         }
     };
 
-    // The left branch is captured, but not the sequence.
-    template <
-        template <typename> class t1_ast_t, size_t t1_i,
-        size_t t2_i>
-    struct sequence_impl<captured<t1_ast_t, t1_i>, captured<void_ast, t2_i> >
+    template <typename t1, typename t2>
+    struct sequence<t1, t2, typename std::enable_if<t1::is_captured && !t2::is_captured>::type >
+        : parser<sequence<t1, t2> >
     {
-        static const int id = 3;
-        typedef captured<t1_ast_t, t1_i> capture_type;
+        static const int sequencetype = 2;
+        static const bool is_captured = true;
 
         template <typename iterator_t>
-        static bool parse_internal(iterator_t& start, iterator_t& end, typename t1_ast_t<iterator_t>::type& a)
+        struct get_ast
+        {
+            typedef typename parser_ast<t1, iterator_t>::type type;
+        };
+
+        template <typename iterator_t>
+        static bool parse_internal(iterator_t& start, iterator_t& end)
+        {
+            return t1::parse_from(start, end) &&
+                t2::parse_from(start, end);
+        }
+
+        template <typename iterator_t>
+        static bool parse_internal(iterator_t& start, iterator_t& end, typename get_ast<iterator_t>::type& a)
         {
             return t1::parse_from(start, end, a) &&
                 t2::parse_from(start, end);
         }
     };
 
-    // Nothing is captured.
-    template <size_t t1_i, size_t t2_i>
-    struct sequence_impl<captured<void_ast, t1_i>, captured<void_ast, t2_i> >
+    template <typename t1, typename t2>
+    struct sequence<t1, t2, typename std::enable_if<!t1::is_captured && t2::is_captured>::type >
+        : parser<sequence<t1, t2> >
     {
-        static const int id = 4;
-        typedef captured<void_ast, -1> capture_type;
+        static const int sequencetype = 3;
+        static const bool is_captured = true;
+
+        template <typename iterator_t>
+        struct get_ast
+        {
+            typedef typename parser_ast<t2, iterator_t>::type type;
+        };
 
         template <typename iterator_t>
         static bool parse_internal(iterator_t& start, iterator_t& end)
@@ -251,32 +177,39 @@ namespace parse2
             return t1::parse_from(start, end) &&
                 t2::parse_from(start, end);
         }
+
+        template <typename iterator_t>
+        static bool parse_internal(iterator_t& start, iterator_t& end, typename get_ast<iterator_t>::type& a)
+        {
+            return t1::parse_from(start, end) &&
+                t2::parse_from(start, end, a);
+        }
     };
 
     template <typename t1, typename t2>
-    struct sequence : parser<sequence<t1, t2> >
+    struct sequence<t1, t2, typename std::enable_if<!t1::is_captured && !t2::is_captured>::type >
+        : parser<sequence<t1, t2> >
     {
-        typedef typename sequence_impl<t1, t2> impl_type;
-        typedef t1 left_type;
-        typedef t2 right_type;
-        static const int impl_id = impl_type::id;
-
+        static const int sequencetype = 4;
+        static const bool is_captured = false;
         template <typename iterator_t>
         struct get_ast
         {
-            typedef typename impl_type::template get_ast<iterator_t>::type type;
+            typedef typename parser_ast<t2, iterator_t>::type type;
         };
 
         template <typename iterator_t>
         static bool parse_internal(iterator_t& start, iterator_t& end)
         {
-            return sequence_impl::parse_internal(start, end);
+            return t1::parse_from(start, end) &&
+                t2::parse_from(start, end);
         }
 
         template <typename iterator_t>
-        static bool parse_internal(iterator_t& start, iterator_t& end, typename impl_type::template get_ast<iterator_t>::type& a)
+        static bool parse_internal(iterator_t& start, iterator_t& end, typename get_ast<iterator_t>::type& a)
         {
-            return sequence_impl::parse_internal(start, end, a);
+            return t1::parse_from(start, end) &&
+                t2::parse_from(start, end);
         }
     };
 
@@ -290,14 +223,23 @@ namespace parse2
     };
 
     template <typename parser_t, size_t i>
-    struct capture_group<parser_t, i> : parser<capture_group<parser_t, i> >
+    struct capture_group : parser<capture_group<parser_t, i> >
     {
         static const size_t key = i;
+        static const bool is_captured = true;
 
-        typedef parser<capture_group<parser_t, i>, typename make_group_capture<typename parser_t::capture_type, i>::type> base_type;
+        typedef parser<capture_group<parser_t, i> > base_type;
 
         template <typename iterator_t>
-        static bool parser_internal(iterator_t& start, iterator_t& end, typename base_type::capture_type::template get_ast<iterator_t>::type& a)
+        struct get_ast
+        {
+            typedef typename parser_ast<parser_t, iterator_t>::type parser_ast_type;
+            typedef typename std::conditional<std::is_void<parser_ast_type>::value, ast_base<iterator_t>, parser_ast_type>::type nonvoid;
+            typedef typename ast::ast_leaf<i, nonvoid> type;
+        };
+
+        template <typename iterator_t>
+        static bool parser_internal(iterator_t& start, iterator_t& end, typename parser_ast<parser_t, iterator_t>::type& a)
         {
             return parser_t::parse_from(start, end, a.ast);
         }
@@ -306,6 +248,7 @@ namespace parse2
     template <char32_t t>
     struct constant : parser<constant<t> >
     {
+        static const bool is_captured = false;
     };
 
     template <typename iterator_t, typename parser_t>
@@ -316,10 +259,10 @@ namespace parse2
 
     namespace operators
     {
-        template <typename t1, typename t2, typename t1_capture, typename t2_capture>
-        sequence<parser<t1, t1_capture>, parser<t2, t2_capture> > operator>> (const parser<t1, t1_capture>& p1, const parser<t2, t2_capture>& p2)
+        template <typename t1, typename t2>
+        sequence<t1, t2> operator>> (const parser<t1>& p1, const parser<t2>& p2)
         {
-            return sequence<parser<t1, t1_capture>, parser<t2, t2_capture> >();
+            return sequence<t1, t2>();
         }
     }
 }

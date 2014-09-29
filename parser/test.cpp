@@ -216,49 +216,24 @@ int _tmain(int argc, _TCHAR* argv[])
         auto a = constant<'a'>();
         auto b = constant<'b'>();
 
-        auto acap = a[_0];
-        auto p = a[_0] >> b[_1] >> (a[_2] >> b >> a >> b[_3]);
+        auto p = a[_0] >> b[_1];
 
         typedef decltype(a) a_type;
         typedef decltype(p) p_type;
-        typedef decltype(acap) acap_type;
 
-        p_type::left_type::capture_type::get_ast<std::string::iterator>::type left_ast;
-        p_type::right_type::capture_type::get_ast<std::string::iterator>::type right_ast;
-        p_type::capture_type::get_ast<std::string::iterator>::type ast;
+        bool cleft = std::identity<decltype(a[_0])>::type::is_captured;
+        int t = p_type::sequencetype;
+        bool captured = p_type::is_captured;
+        typedef parse2::parser_ast<p_type, std::string::iterator>::type ast_type;
+        ast_type ast;
 
-        auto& c0 = ast[_0];
-        auto& c1 = ast[_1];
-        auto& c2 = ast[_2];
-
-        typedef decltype(ast) ast_type;
-        auto ast_size = ast_type::size;
-
-        using namespace list;
-        typedef push_back<push_back<make_list<
-            1, int>::type, 
-            2, char>::type,
-            3, bool>::type l1_t;
-
-        typedef push_front<push_front<make_list<
-            6, short>::type, 
-            5, long>::type,
-            4, double>::type l2_t;
-
-        typedef concat<l1_t, l2_t>::type l3_t;
-        l3_t l3;
-
-        l3.at(_1) = 11;
-        l3.at(_2) = 22;
-        l3.at(_3) = true;
-        l3.at(_4) = 44;
-        l3.at(_5) = 55;
-        l3.at(_6) = 66;
-
-        typedef map<l3_t, std::add_pointer>::type l4_t;
-        l3_t::head_type tmp1;
-        std::add_pointer<l3_t::head_type>::type tmp;
-        l4_t l4;
+        ast_type::get_value_type<0>::type v0;
+        ast_type::get_base_type<1>::right_base rb;
+        //ast_type::get_base_type<1>::left_base lb;
+        ast_type::get_value_type<1>::type v1;
+        
+        auto& a0 = ast[_0];
+        auto& a1 = ast[_1];
 
         std::cout << std::endl;
     }
