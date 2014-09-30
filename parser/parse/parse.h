@@ -26,7 +26,7 @@ namespace parse
     template <typename derived_t>
     struct parser
     {
-        typedef derived_t parser_type;
+        typedef derived_t derived_type;
 
         static const bool is_captured = false;
 
@@ -76,10 +76,12 @@ namespace parse
     struct capture_group<parser_t, i, typename std::enable_if<parser_t::is_captured>::type>
         : parser<capture_group<parser_t, i> >
     {
+        static const int specialization = 1;
         static const size_t key = i;
         static const bool is_captured = true;
 
         typedef parser<capture_group<parser_t, i> > base_type;
+        typedef parser_t parser_type;
 
         template <typename iterator_t>
         struct get_ast
@@ -87,6 +89,12 @@ namespace parse
             typedef typename parser_ast<parser_t, iterator_t>::type parser_ast_type;
             typedef typename tree::leaf<i, tree::base<iterator_t, parser_ast_type> > type;
         };
+
+        template <typename iterator_t>
+        static bool parse_internal(iterator_t& start, iterator_t& end)
+        {
+            return parser_t::parse_from(start, end);
+        }
 
         template <typename iterator_t>
         static bool parse_internal(iterator_t& start, iterator_t& end, typename get_ast<iterator_t>::type& a)
@@ -102,10 +110,12 @@ namespace parse
     struct capture_group<parser_t, i, typename std::enable_if<!parser_t::is_captured>::type>
         : parser<capture_group<parser_t, i> >
     {
+        static const int specialization = 2;
         static const size_t key = i;
         static const bool is_captured = true;
 
         typedef parser<capture_group<parser_t, i> > base_type;
+        typedef parser_t parser_type;
 
         template <typename iterator_t>
         struct get_ast
@@ -113,6 +123,12 @@ namespace parse
             typedef typename parser_ast<parser_t, iterator_t>::type parser_ast_type;
             typedef typename tree::leaf<i, tree::base<iterator_t, parser_ast_type> > type;
         };
+
+        template <typename iterator_t>
+        static bool parse_internal(iterator_t& start, iterator_t& end)
+        {
+            return parser_t::parse_from(start, end);
+        }
 
         template <typename iterator_t>
         static bool parse_internal(iterator_t& start, iterator_t& end, typename get_ast<iterator_t>::type& a)
@@ -324,9 +340,10 @@ namespace parse
         template <typename iterator_t>
         struct get_ast
         {
-            typedef typename parser_ast<t1, iterator_t>::type t1_ast_type;
-            typedef typename parser_ast<t2, iterator_t>::type t2_ast_type;
-            typedef typename tree::join<t1_ast_type, t2_ast_type>::type type;
+            typedef typename tree::join<
+                typename parser_ast<t1, iterator_t>::type,
+                typename parser_ast<t2, iterator_t>::type
+            >::type type;
         };
 
         template <typename iterator_t>
@@ -415,11 +432,6 @@ namespace parse
 
         static const int sequencetype = 4;
         static const bool is_captured = false;
-        template <typename iterator_t>
-        struct get_ast
-        {
-            typedef typename parser_ast<t2, iterator_t>::type type;
-        };
 
         template <typename iterator_t>
         static bool parse_internal(iterator_t& start, iterator_t& end)
@@ -654,8 +666,16 @@ namespace parse
         template <typename iterator_t>
         struct get_ast
         {
-            typedef tree::reference<parser_t, iterator_t> type;
+            typedef typename std::conditional<parser_t::is_captured,
+                tree::reference<parser_t, iterator_t>, void
+            >::type type;
         };
+
+        template <typename iterator_t>
+        static bool parse_internal(iterator_t& start, iterator_t& end)
+        {
+            return parser_t::parse_from(start, end);
+        }
 
         template <typename iterator_t>
         static bool parse_internal(iterator_t& start, iterator_t& end, typename get_ast<iterator_t>::type& tree)

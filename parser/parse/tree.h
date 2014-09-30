@@ -133,9 +133,7 @@ namespace parse
         template <size_t i1, typename value1_t, size_t i2, typename value2_t>
         struct is_unique<leaf<i1, value1_t>, leaf<i2, value2_t> >
         {
-            typedef leaf<i1, value1_t> leaf1_t;
-            typedef leaf<i2, value2_t> leaf2_t;
-            static const bool value = leaf1_t::idx != leaf2_t::idx;
+            static const bool value = i1 != i2;
         };
 
         // This meta-function creates a new AST type by joining to AST's 
@@ -147,10 +145,9 @@ namespace parse
             typedef typename branch<branch1_t, branch2_t> type;
         };
 
-        template <typename parser_t, typename iterator_t>
+        template <typename parser_ast_t, typename iterator_t>
         struct repetition
         {
-            typedef typename parser_t::template get_ast<iterator_t>::type parser_ast_t;
             typedef std::vector<parser_ast_t> container_type;
             container_type matches;
             parser_ast_t partial;
@@ -217,8 +214,8 @@ namespace parse
             return last_match(b.value);
         }
 
-        template <typename iterator_t>
-        iterator_t last_match(base<iterator_t>& b)
+        template <typename iterator_t, typename base_t>
+        iterator_t last_match(base<iterator_t, base_t>& b)
         {
             return b.matched ? b.end : b.start;
         }

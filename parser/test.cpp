@@ -111,7 +111,7 @@ namespace custom_ast_test
 }
 #endif
 
-#if 0
+#if 1
 namespace ast_tag_test
 {
     using namespace parse;
@@ -124,7 +124,7 @@ namespace ast_tag_test
 
     struct s_expr;
 
-    typedef decltype(num | reference<s_expr>()) elem_t;
+    typedef decltype(num | reference<s_expr>()[_1]) elem_t;
 
     typedef decltype(lparen >> *space() >> elem_t() >> *(+space() >> elem_t()) >> *space() >> rparen) s_expr_t;
 
@@ -132,11 +132,13 @@ namespace ast_tag_test
 
     void test()
     {
-        s_expr p;
-        std::string data("(1 (2 33 345) ((((1234)))))");
-        auto ast = tree::make_ast(p, data);
+        s_expr::left_type::left_type::left_type::right_type::right_type::parser_type temp;
+        bool is = temp.is_captured;
+        
+        std::string data("((1) 2 3 (2 33 345) ((((1234)))))");
+        parse::parser_ast<s_expr, std::string::iterator>::type ast;
 
-        bool valid = p.parse(data, ast);
+        bool valid = s_expr::parse_from(data.begin(), data.end(), ast);
     }
 }
 #endif
@@ -202,6 +204,8 @@ template <typename t> struct map_f { typedef t* type; };
 
 int _tmain(int argc, _TCHAR* argv[])
 {
+    ast_tag_test::test();
+
 #if 0
     /* Pruned AST test */
     {
@@ -279,8 +283,10 @@ int _tmain(int argc, _TCHAR* argv[])
     // File parsing
     std::ifstream ifs;
     ifs.open("test\\cfg_test.cfg", std::ios::in | std::ios::binary);
-    //std::string xml_data(std::istreambuf_iterator<char>(ifs.rdbuf()), std::istreambuf_iterator<char>());
-    util::streambuf_container<std::streambuf> xml_data(ifs.rdbuf());
+    std::string xml_data(std::istreambuf_iterator<char>(ifs.rdbuf()), std::istreambuf_iterator<char>());
+    //util::streambuf_container<std::streambuf> xml_data(ifs.rdbuf());
+
+    typedef decltype(xml_data) data_type;
 
     long long t1, t2;
 
@@ -302,13 +308,35 @@ int _tmain(int argc, _TCHAR* argv[])
 #endif
 
     /* XML Reader Test */
-#if 1
+#if 0
     std::cout.setstate(std::ios_base::badbit);
     t1 = time();
     read_dump(xml_data);
     t2 = time();
     std::cout.clear();
     std::cout << "reader parse time: " << double(t2 - t1)/10000 << std::endl;
+#endif
+
+#if 0
+    /* XML parse-only test */
+    {
+        t1 = time();
+        auto start = xml_data.begin();
+        bool valid = xml::grammar::document::parse_from(start, xml_data.end());
+        t2 = time();
+        std::cout << "parse-only time: " << double(t2 - t1)/10000 << ", valid=" << std::boolalpha << valid << std::endl;
+    }
+#endif
+
+#if 0
+    {
+        t1 = time();
+        auto start = xml_data.begin();
+        parse::parser_ast<xml::grammar::document, data_type::iterator>::type ast;
+        bool valid = xml::grammar::document::parse_from(start, xml_data.end());
+        t2 = time();
+        std::cout << "parse-only with AST time: " << double(t2 - t1)/10000 << ", valid=" << std::boolalpha << valid << std::endl;
+    }
 #endif
 
     /* XML Tree Test */

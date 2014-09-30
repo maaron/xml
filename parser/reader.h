@@ -6,32 +6,6 @@
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
 
-INT64 node_ctr_low = MAXINT64;
-INT64 node_ctr_high = MININT64;
-
-struct profile
-{
-    LARGE_INTEGER t1;
-    long long& low;
-    long long& high;
-
-    profile(long long& l, long long& h) : high(h), low(l)
-    {
-        QueryPerformanceCounter(&t1);
-    }
-
-    ~profile()
-    {
-        LARGE_INTEGER t2;
-        QueryPerformanceCounter(&t2);
-
-        auto t = t2.QuadPart - t1.QuadPart;
-
-        if (t < low) low = t;
-        if (t > high) high = t;
-    }
-};
-
 namespace xml
 {
     // This namespace contains classes that can be used to parse XML data in 
@@ -70,7 +44,7 @@ namespace xml
 
         protected:
             iterator_t it, end;
-            std::string text_or_tag;
+            match_string<iterator_t> text_or_tag;
 
         public:
             typedef xml::reader::node<iterator_t> node_type;
@@ -79,8 +53,6 @@ namespace xml
             node(iterator_t i, iterator_t e)
                 : it(i), end(e)
             {
-                profile(node_ctr_low, node_ctr_high);
-
                 typedef decltype( (lt >> fslash >> name[_0] >> gt) | ((lt >> name[_1]) | comment() | textnode()[_2]) ) parser;
                 typedef typename parse::parser_ast<parser, iterator_t>::type ast;
 
@@ -142,7 +114,7 @@ namespace xml
 
             // Returns the content of a the current node.  Only valid if the 
             // current node is a text node (i.e., is_text() returns true).
-            std::string text()
+            match_string<iterator_t> text()
             {
                 assert(is_text());
                 return text_or_tag;
@@ -187,7 +159,7 @@ namespace xml
             }
 
             // Returns the tag name of the element.
-            std::string name()
+            match_string<iterator_t> name()
             {
                 return text_or_tag;
             }
@@ -220,8 +192,8 @@ namespace xml
         template <typename iterator_t>
         class attribute
         {
-            std::string _name;
-            std::string _value;
+            match_string<iterator_t> _name;
+            match_string<iterator_t> _value;
             iterator_t it, end;
             enum { attribute_node, end_of_attributes, end_of_element } parser_state;
 
@@ -244,7 +216,7 @@ namespace xml
                 {
                     _name = get_string(a[_0]);
                     auto& qstr = a[_1];
-                    _value = qstr[_0].matched ? get_string(qstr[_0]) : get_string(qstr[_1]);
+                    _value = qstring_value(qstr);
                     parser_state = attribute_node;
                 }
                 else
@@ -256,7 +228,7 @@ namespace xml
 
             // Returns the name of the attribute, i.e., "name='value'".  Only 
             // valid if is_end() would return false.
-            std::string name()
+            match_string<iterator_t> name()
             {
                 assert(parser_state == attribute_node);
                 return _name;
@@ -264,7 +236,7 @@ namespace xml
             
             // Returns the value of the attribute, i.e., "name='value'".  Only 
             // valid if is_end() would return false.
-            std::string value()
+            match_string<iterator_t> value()
             {
                 assert(parser_state == attribute_node);
                 return _value;

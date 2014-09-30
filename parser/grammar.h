@@ -3,17 +3,56 @@
 #include <assert.h>
 #include <string>
 #include "parse\parse.h"
+#include <algorithm>
 
 namespace xml
 {
     using namespace util;
 
     template <typename unicode_iterator>
-    std::string get_string(parse::tree::base<unicode_iterator>& ast)
+    class match_string
     {
-        std::string ret;
-        utf8::utf32to8(ast.start, ast.end, std::back_inserter(ret));
-        return ret;
+        unicode_iterator s, e;
+
+    public:
+        match_string() {}
+
+        match_string(unicode_iterator start, unicode_iterator end)
+            : s(start), e(end) {}
+
+        operator std::string() const
+        {
+            std::string ret;
+            utf8::utf32to8(s, e, std::back_inserter(ret));
+            return ret;
+        }
+
+        bool operator== (const std::string& rhs) const
+        {
+            auto b1 = s;
+            auto e1 = e;
+            auto b2 = rhs.begin();
+            auto e2 = rhs.end();
+            while (b1 != e1 && b2 != e2)
+            {
+                if (*b1++ != *b2++) return false;
+            }
+            return (b1 == e1 && b2 == e2)
+        }
+
+        bool operator!= (const std::string& rhs) const { return !(*this==rhs); }
+    };
+
+    template <typename iterator_t>
+    std::ostream& operator<< (std::ostream& lhs, const match_string<iterator_t>& rhs)
+    {
+        return lhs << std::string(rhs);
+    }
+
+    template <typename unicode_iterator>
+    match_string<unicode_iterator> get_string(parse::tree::base<unicode_iterator>& ast)
+    {
+        return match_string<unicode_iterator>(ast.start, ast.end);
     }
 
     class parse_exception : public std::exception
@@ -37,8 +76,8 @@ namespace xml
         parse_exception(iterator_t& next, iterator_t& end)
         {
             std::ostringstream mstr;
-            mstr << "line " << next.get_line() << ", column " << next.get_column() << ": ";
-            message += mstr.str();
+            //mstr << "line " << next.get_line() << ", column " << next.get_column() << ": ";
+            //message += mstr.str();
 
             std::string next_chars;
             size_t count = 0;
@@ -93,7 +132,7 @@ namespace xml
         auto content_char = ~(lt | gt);
 
         typedef decltype((squote >> (*(~squote))[_0] >> squote) | (dquote >> (*(~dquote))[_1] >> dquote)) qstring;
-
+        
         typedef decltype(ws >> name[_0] >> eq >> qstring()[_1]) attribute;
 
         typedef decltype(*attribute()) attribute_list;
@@ -130,6 +169,13 @@ namespace xml
 
         typedef decltype(prolog() >> element()[_0]) document;
     }
+
+    template <typename ast_t>
+    auto qstring_value(ast_t& ast) -> decltype(get_string(ast[_0]))
+    {
+        return ast[_0].matched ? get_string(ast[_0]) : get_string(ast[_1]);
+    }
+
 }
 
 template <> struct ::parse::debug_tag<xml::grammar::attribute_list> { static const char* name() { return "xml::attribute_list"; } };
