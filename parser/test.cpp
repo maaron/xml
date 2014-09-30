@@ -279,8 +279,8 @@ int _tmain(int argc, _TCHAR* argv[])
     // File parsing
     std::ifstream ifs;
     ifs.open("test\\cfg_test.cfg", std::ios::in | std::ios::binary);
-    std::string xml_data(std::istreambuf_iterator<char>(ifs.rdbuf()), std::istreambuf_iterator<char>());
-    //util::streambuf_container<std::streambuf> xml_data(ifs.rdbuf());
+    //std::string xml_data(std::istreambuf_iterator<char>(ifs.rdbuf()), std::istreambuf_iterator<char>());
+    util::streambuf_container<std::streambuf> xml_data(ifs.rdbuf());
 
     long long t1, t2;
 
