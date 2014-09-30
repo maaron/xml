@@ -81,45 +81,35 @@ namespace xml
             {
                 profile(node_ctr_low, node_ctr_high);
 
-                typedef decltype( group(lt >> fslash >> group(name) >> gt) | ((lt >> group(name)) | comment() | textnode()) ) parser;
-                typedef typename parse::ast_type<parser, iterator_t>::type ast;
-
-                parser p;
+                typedef decltype( (lt >> fslash >> name[_0] >> gt) | ((lt >> name[_1]) | comment() | textnode()[_2]) ) parser;
+                typedef typename parse::parser_ast<parser, iterator_t>::type ast;
 
                 while (true)
                 {
                     ast a;
 
-                    if (!p.parse_from(it, end, a))
-                        throw parse_exception(a, end);
+                    if (!parser::parse_from(it, end, a))
+                        throw parse_exception(it, end);
 
-                    if (a[_1].matched)
-                    {
-                        auto& child_node = a[_1];
-                        if (child_node[_0].matched)
-                        {
-                            parser_state = element_node;
-                            text_or_tag = get_string(child_node[_0][_1]);
-                            return;
-                        }
-                        else if (child_node[_1].matched)
-                        {
-                            continue;
-                        }
-                        else
-                        {
-                            assert(child_node[_2].matched);
-                            parser_state = text_node;
-                            text_or_tag = get_string(child_node[_2]);
-                            return;
-                        }
-                    }
-                    else // end tag found
+                    if (a[_0].matched)
                     {
                         assert(a[_0].matched);
                         parser_state = end_of_nodes;
                         return;
                     }
+                    else if (a[_1].matched)
+                    {
+                        parser_state = element_node;
+                        text_or_tag = get_string(a[_1]);
+                        return;
+                    }
+                    else if (a[_2].matched)
+                    {
+                        parser_state = text_node;
+                        text_or_tag = get_string(a[_2]);
+                        return;
+                    }
+                    // else must be a comment, so keep parsing
                 }
             }
 
@@ -242,24 +232,24 @@ namespace xml
             attribute(iterator_t i, iterator_t e)
                 : it(i), end(e)
             {
-                typedef decltype( (!ws >> group(grammar::name) >> eq >> qstring()) | (!ws >> !fslash >> gt) ) attribute_parser;
-                typedef typename parse::ast_type<attribute_parser, iterator_t>::type attribute_ast;
+                typedef decltype( (!ws >> grammar::name[_0] >> eq >> qstring()[_1]) | (!ws >> !fslash[_2] >> gt) ) parser;
+                typedef typename parse::parser_ast<parser, iterator_t>::type ast;
 
-                attribute_parser p;
-                attribute_ast a;
+                ast a;
                 
-                if (!p.parse_from(it, end, a))
+                if (!parser::parse_from(it, end, a))
                     throw parse_exception(a, end);
                 
                 if (a[_0].matched)
                 {
-                    _name = get_string(a[_0][_1]);
-                    _value = a[_0][_3].value();
+                    _name = get_string(a[_0]);
+                    auto& qstr = a[_1];
+                    _value = qstr[_0].matched ? get_string(qstr[_0]) : get_string(qstr[_1]);
                     parser_state = attribute_node;
                 }
                 else
                 {
-                    parser_state = a[_1][_1].option.matched ?
+                    parser_state = a[_2].matched ?
                         end_of_element : end_of_attributes;
                 }
             }
@@ -357,11 +347,8 @@ namespace xml
             document(container_t& c)
                 : data(c), it(data.begin()), end(data.end())
             {
-                grammar::prolog p;
-                typename parse::ast_type<grammar::prolog, iterator_t>::type a;
-
-                if (!p.parse_from(it, end, a)) 
-                    throw parse_exception(a, end);
+                if (!grammar::prolog::parse_from(it, end)) 
+                    throw parse_exception(it, end);
             }
 
             // Returns the element object representing the root of the 

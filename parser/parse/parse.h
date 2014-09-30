@@ -8,145 +8,119 @@
 
 namespace parse
 {
+    template <typename t>
+    struct always_false { enum { value = false }; };
+
     template <typename parser_t>
     struct debug_tag { static const char* name() { return "unknown"; } };
 
-    template <typename parser_t, typename iterator_t>
-    struct ast_type
-    {
-        typedef typename parser_t::template ast<iterator_t>::type type;
-    };
+    template <typename parser_t, size_t i, typename impl = void>
+    struct capture_group;
 
     template <typename parser_t, typename iterator_t>
-    struct is_capture
+    struct parser_ast
     {
-        static const bool value = !std::is_same<typename parser_t::ast<iterator_t>::type, tree::ast_base<iterator_t> >::value;
+        typedef typename parser_t::template get_ast<iterator_t>::type type;
     };
 
-    template <typename parser_t>
-    struct ast_template
-    {
-        typedef tree::ast_base type;
-    };
-
-    struct parser_tag {};
-
-    template <bool single>
-    struct parser_traits
-    {
-        static const bool is_single = single;
-        typedef parser_tag tag;
-    };
-
-    // Base class for all parsers.  The main method, parse(stream_t&, ast&) 
-    // tracks the start and end positions of the underlying parser's match, and 
-    // updates the AST accordingly.
     template <typename derived_t>
-    class parser
+    struct parser
     {
-    public:
-        template <typename iterator_t>
-        struct ast { typedef tree::ast_base<iterator_t> type; };
+        typedef derived_t parser_type;
 
+        static const bool is_captured = false;
+
+        static const bool is_single = false;
+        
         template <typename iterator_t>
-        static
-        typename std::enable_if<is_capture<derived_t, iterator_t>::value, bool>::type
-        parse_from(iterator_t& start, iterator_t& end, typename ast_type<derived_t, iterator_t>::type& ast)
+        struct get_ast { typedef void type; };
+
+        // 3-parameter parse_from() only valid if the parser is captured.
+        // it is set to the end of the match, which may be a partial if the
+        // function returns false.
+        template <typename iterator_t, typename ast_t>
+        static bool parse_from(iterator_t& it, iterator_t& end, ast_t& a)
         {
-            auto matchEnd = start;
-
-            if (derived_t::parse_internal(matchEnd, end, ast))
+            auto start = it;
+            if (!derived_t::parse_internal(it, end, a))
             {
-                start = matchEnd;
-                return true;
+                it = start;
+                return false;
             }
-            else return false;
+            else return true;
         }
 
+        // 2-parameter parse_from() always available for parsing without 
+        // generating an AST.
         template <typename iterator_t>
-        static
-        typename std::enable_if<!is_capture<derived_t, iterator_t>::value, bool>::type
-        parse_from(iterator_t& start, iterator_t& end)
+        static bool parse_from(iterator_t& it, iterator_t& end)
         {
-            auto matchEnd = start;
-
-            if (derived_t::parse_internal(matchEnd, end))
+            auto start = it;
+            if (!derived_t::parse_internal(it, end))
             {
-                start = matchEnd;
-                return true;
+                it = start;
+                return false;
             }
-            else return false;
+            else return true;
         }
 
-        template <typename stream_t>
-        static
-        typename std::enable_if<is_capture<derived_t, typename stream_t::iterator>::value, bool>::type
-        parse(stream_t& s, typename ast_type<derived_t, typename stream_t::iterator>::type& ast)
+        // Operator overload for capturing parser result into an AST.
+        template <size_t i>
+        capture_group<derived_t, i> operator[] (const placeholders::index<i>& ph)
         {
-            return parse_from(s.begin(), s.end(), ast);
-        }
-
-        template <typename stream_t>
-        static bool parse(stream_t& s)
-        {
-            return parse_from(s.begin(), s.end());
+            return capture_group<derived_t, i>();
         }
     };
 
     template <typename parser_t, size_t i>
-    struct capture : parser<capture<parser_t, i> >,
-        parser_traits<parser_t::is_single>
+    struct capture_group<parser_t, i, typename std::enable_if<parser_t::is_captured>::type>
+        : parser<capture_group<parser_t, i> >
     {
+        static const size_t key = i;
+        static const bool is_captured = true;
+
+        typedef parser<capture_group<parser_t, i> > base_type;
+
         template <typename iterator_t>
-        struct ast
+        struct get_ast
         {
-            //typedef typename ast_type<parser_t, iterator_t>::type parser_ast_type;
-            //typedef tree::ast_base<iterator_t> default_ast_type;
-            //static const bool void_ast = std::is_void<parser_ast_type>::value;
-            //typedef typename std::conditional<void_ast, default_ast_type, parser_ast_type >::type type;
-            typedef typename ast_type<parser_t, iterator_t>::type parser_ast_type;
-            typedef tree::ast_base<iterator_t> default_ast_type;
-            static const bool has_ast = !std::is_same<parser_ast_type, default_ast_type>::value;
-            typedef typename std::conditional<has_ast, parser_ast_type, default_ast_type>::type type;
+            typedef typename parser_ast<parser_t, iterator_t>::type parser_ast_type;
+            typedef typename tree::leaf<i, tree::base<iterator_t, parser_ast_type> > type;
         };
 
         template <typename iterator_t>
-        static bool parse_internal(iterator_t& start, iterator_t& end, typename ast<iterator_t>::type& a)
+        static bool parse_internal(iterator_t& start, iterator_t& end, typename get_ast<iterator_t>::type& a)
         {
-            a.start = start;
-            a.parsed = true;
-            if (ast<iterator_t>::has_ast)
-                a.matched = parser_t::parse_from(start, end, a);
-            else
-                a.matched = parser_t::parse_from(start, end);
-            a.end = start;
-            return a.matched;
+            a.value.start = a.value.end = start;
+            a.value.matched = parser_t::parse_from(start, end, a.value);
+            a.value.end = start;
+            return a.value.matched;
         }
     };
 
-    // This parser is useful for collecting series of alternates or sequences
-    // into logical groups.  Without using this class, a sequence created with
-    // an expression like "a >> b >> c", will generate a class with an AST type
-    // that has three children.  If what you really want is "(a >> b) >> c",
-    // i.e., a sequence of two elements, you must enclose the first
-    // sub-sesquence in a group classm like this: 
-    // 
-    //   auto elem1 = grouped<decltype(a >> b)>(); // Or group(a >> b), from parse::operators namespace
-    //   auto pair = elem1 >> c;
-    template <typename parser_t>
-    class grouped : public parser< grouped<parser_t> >, public parser_traits<parser_t::is_single>
+    template <typename parser_t, size_t i>
+    struct capture_group<parser_t, i, typename std::enable_if<!parser_t::is_captured>::type>
+        : parser<capture_group<parser_t, i> >
     {
-    public:
+        static const size_t key = i;
+        static const bool is_captured = true;
+
+        typedef parser<capture_group<parser_t, i> > base_type;
+
         template <typename iterator_t>
-        struct ast
+        struct get_ast
         {
-            typedef tree::grouped<parser_t, iterator_t> type;
+            typedef typename parser_ast<parser_t, iterator_t>::type parser_ast_type;
+            typedef typename tree::leaf<i, tree::base<iterator_t, parser_ast_type> > type;
         };
 
         template <typename iterator_t>
-        static bool parse_internal(iterator_t& start, iterator_t& end, typename ast<iterator_t>::type& tree)
+        static bool parse_internal(iterator_t& start, iterator_t& end, typename get_ast<iterator_t>::type& a)
         {
-            return parser_t::parse_from(start, end, tree.group);
+            a.value.start = a.value.end = start;
+            a.value.matched = parser_t::parse_from(start, end);
+            a.value.end = start;
+            return a.value.matched;
         }
     };
 
@@ -163,29 +137,41 @@ namespace parse
     // second parser won't be tried if the first matches.  This class supports
     // general parser alternates, and also has special support for single 
     // token alternates.
-    template <typename first_t, typename second_t>
-    class alternate : public parser< alternate<first_t, second_t> >, 
-        public parser_traits<first_t::is_single && second_t::is_single>
+    template <typename t1, typename t2, typename enable = void>
+    struct alternate { static_assert(always_false<enable>::value, "alternate specialization failed to compile"); };
+
+    template <typename t1, typename t2>
+    struct alternate<t1, t2, typename std::enable_if<t1::is_captured && t2::is_captured>::type >
+        : parser<alternate<t1, t2> >
     {
-    public:
-        typedef typename token_type<first_t, is_single>::type token_type;
+        typedef t1 left_type;
+        typedef t2 right_type;
+
+        static const bool is_captured = true;
+        static const bool is_single = t1::is_single && t2::is_single;
+
+        typedef typename token_type<t1, is_single>::type token_type;
 
         template <typename iterator_t>
-        struct ast
+        struct get_ast
         {
-            typedef tree::alternate<
-                iterator_t,
-                typename first_t::template ast<iterator_t>::type,
-                typename second_t::template ast<iterator_t>::type> type;
+            typedef typename parser_ast<t1, iterator_t>::type t1_ast_type;
+            typedef typename parser_ast<t2, iterator_t>::type t2_ast_type;
+            typedef typename tree::join<t1_ast_type, t2_ast_type>::type type;
         };
 
-        // This should be called for general parsers
         template <typename iterator_t>
-        static bool parse_internal(iterator_t& start, iterator_t& end, typename ast<iterator_t>::type& tree)
+        static bool parse_internal(iterator_t& start, iterator_t& end)
         {
-            return
-                first_t::parse_from(start, end, tree.first) ||
-                second_t::parse_from(start, end, tree.second);
+            return t1::parse_from(start, end) ||
+                t2::parse_from(start, end);
+        }
+
+        template <typename iterator_t>
+        static bool parse_internal(iterator_t& start, iterator_t& end, typename get_ast<iterator_t>::type& a)
+        {
+            return t1::parse_from(start, end, a.left()) ||
+                t2::parse_from(start, end, a.right());
         }
 
         // This should only be called if both first and second are single 
@@ -193,51 +179,294 @@ namespace parse
         template <typename token_t>
         static bool match(token_t t)
         {
-            return first_t::match(t) || second_t::match(t);
+            return t1::match(t) || t2::match(t);
+        }
+    };
+
+    template <typename t1, typename t2>
+    struct alternate<t1, t2, typename std::enable_if<t1::is_captured && !t2::is_captured>::type >
+        : parser<alternate<t1, t2> >
+    {
+        typedef t1 left_type;
+        typedef t2 right_type;
+
+        static const bool is_captured = true;
+        static const bool is_single = t1::is_single && t2::is_single;
+
+        typedef typename token_type<t1, is_single>::type token_type;
+
+        template <typename iterator_t>
+        struct get_ast
+        {
+            typedef typename parser_ast<t1, iterator_t>::type type;
+        };
+
+        template <typename iterator_t>
+        static bool parse_internal(iterator_t& start, iterator_t& end)
+        {
+            return t1::parse_from(start, end) ||
+                t2::parse_from(start, end);
+        }
+
+        template <typename iterator_t>
+        static bool parse_internal(iterator_t& start, iterator_t& end, typename get_ast<iterator_t>::type& a)
+        {
+            return t1::parse_from(start, end, a) ||
+                t2::parse_from(start, end);
+        }
+
+        // This should only be called if both first and second are single 
+        // token parsers.
+        template <typename token_t>
+        static bool match(token_t t)
+        {
+            return t1::match(t) || t2::match(t);
+        }
+    };
+
+    template <typename t1, typename t2>
+    struct alternate<t1, t2, typename std::enable_if<!t1::is_captured && t2::is_captured>::type >
+        : parser<alternate<t1, t2> >
+    {
+        typedef t1 left_type;
+        typedef t2 right_type;
+
+        static const bool is_captured = true;
+        static const bool is_single = t1::is_single && t2::is_single;
+
+        typedef typename token_type<t1, is_single>::type token_type;
+
+        template <typename iterator_t>
+        struct get_ast
+        {
+            typedef typename parser_ast<t2, iterator_t>::type type;
+        };
+
+        template <typename iterator_t>
+        static bool parse_internal(iterator_t& start, iterator_t& end)
+        {
+            return t1::parse_from(start, end) ||
+                t2::parse_from(start, end);
+        }
+
+        template <typename iterator_t>
+        static bool parse_internal(iterator_t& start, iterator_t& end, typename get_ast<iterator_t>::type& a)
+        {
+            return t1::parse_from(start, end) ||
+                t2::parse_from(start, end, a);
+        }
+
+        // This should only be called if both first and second are single 
+        // token parsers.
+        template <typename token_t>
+        static bool match(token_t t)
+        {
+            return t1::match(t) || t2::match(t);
+        }
+    };
+
+    template <typename t1, typename t2>
+    struct alternate<t1, t2, typename std::enable_if<!t1::is_captured && !t2::is_captured>::type >
+        : parser<alternate<t1, t2> >
+    {
+        typedef t1 left_type;
+        typedef t2 right_type;
+
+        static const bool is_captured = false;
+        static const bool is_single = t1::is_single && t2::is_single;
+
+        typedef typename token_type<t1, is_single>::type token_type;
+
+        template <typename iterator_t>
+        struct get_ast
+        {
+            typedef typename parser_ast<t2, iterator_t>::type type;
+        };
+
+        template <typename iterator_t>
+        static bool parse_internal(iterator_t& start, iterator_t& end)
+        {
+            return t1::parse_from(start, end) ||
+                t2::parse_from(start, end);
+        }
+
+        template <typename iterator_t>
+        static bool parse_internal(iterator_t& start, iterator_t& end, typename get_ast<iterator_t>::type& a)
+        {
+            return t1::parse_from(start, end) ||
+                t2::parse_from(start, end);
+        }
+
+        // This should only be called if both first and second are single 
+        // token parsers.
+        template <typename token_t>
+        static bool match(token_t t)
+        {
+            return t1::match(t) || t2::match(t);
         }
     };
 
     // A parser that matches only if both of the given parsers match in 
     // sequence.
-    template <typename first_t, typename second_t>
-    class sequence : public parser< sequence<first_t, second_t> >,
-        public parser_traits<false>
+    template <typename t1, typename t2, typename enable = void>
+    struct sequence { static_assert(always_false<enable>::value, "sequence specialization failed to compile"); };
+
+    template <typename t1, typename t2>
+    struct sequence<t1, t2, typename std::enable_if<t1::is_captured && t2::is_captured>::type >
+        : parser<sequence<t1, t2> >
     {
-    public:
+        typedef t1 left_type;
+        typedef t2 right_type;
+
+        static const int sequencetype = 1;
+        static const bool is_captured = true;
+
         template <typename iterator_t>
-        struct ast
+        struct get_ast
         {
-            typedef tree::sequence<
-                iterator_t,
-                typename first_t::template ast<iterator_t>::type,
-                typename second_t::template ast<iterator_t>::type> type;
+            typedef typename parser_ast<t1, iterator_t>::type t1_ast_type;
+            typedef typename parser_ast<t2, iterator_t>::type t2_ast_type;
+            typedef typename tree::join<t1_ast_type, t2_ast_type>::type type;
         };
 
         template <typename iterator_t>
-        static bool parse_internal(iterator_t& start, iterator_t& end, typename ast<iterator_t>::type& tree)
+        static bool parse_internal(iterator_t& start, iterator_t& end)
         {
-            return first_t::parse_from(start, end, tree.first) &&
-                second_t::parse_from(start, end, tree.second);
+            return t1::parse_from(start, end) &&
+                t2::parse_from(start, end);
+        }
+
+        template <typename iterator_t>
+        static bool parse_internal(iterator_t& start, iterator_t& end, typename get_ast<iterator_t>::type& a)
+        {
+            return t1::parse_from(start, end, a.left()) &&
+                t2::parse_from(start, end, a.right());
+        }
+    };
+
+    template <typename t1, typename t2>
+    struct sequence<t1, t2, typename std::enable_if<t1::is_captured && !t2::is_captured>::type >
+        : parser<sequence<t1, t2> >
+    {
+        typedef t1 left_type;
+        typedef t2 right_type;
+
+        static const int sequencetype = 2;
+        static const bool is_captured = true;
+
+        template <typename iterator_t>
+        struct get_ast
+        {
+            typedef typename parser_ast<t1, iterator_t>::type type;
+        };
+
+        template <typename iterator_t>
+        static bool parse_internal(iterator_t& start, iterator_t& end)
+        {
+            return t1::parse_from(start, end) &&
+                t2::parse_from(start, end);
+        }
+
+        template <typename iterator_t>
+        static bool parse_internal(iterator_t& start, iterator_t& end, typename get_ast<iterator_t>::type& a)
+        {
+            return t1::parse_from(start, end, a) &&
+                t2::parse_from(start, end);
+        }
+    };
+
+    template <typename t1, typename t2>
+    struct sequence<t1, t2, typename std::enable_if<!t1::is_captured && t2::is_captured>::type >
+        : parser<sequence<t1, t2> >
+    {
+        typedef t1 left_type;
+        typedef t2 right_type;
+
+        static const int sequencetype = 3;
+        static const bool is_captured = true;
+
+        template <typename iterator_t>
+        struct get_ast
+        {
+            typedef typename parser_ast<t2, iterator_t>::type type;
+        };
+
+        template <typename iterator_t>
+        static bool parse_internal(iterator_t& start, iterator_t& end)
+        {
+            return t1::parse_from(start, end) &&
+                t2::parse_from(start, end);
+        }
+
+        template <typename iterator_t>
+        static bool parse_internal(iterator_t& start, iterator_t& end, typename get_ast<iterator_t>::type& a)
+        {
+            return t1::parse_from(start, end) &&
+                t2::parse_from(start, end, a);
+        }
+    };
+
+    template <typename t1, typename t2>
+    struct sequence<t1, t2, typename std::enable_if<!t1::is_captured && !t2::is_captured>::type >
+        : parser<sequence<t1, t2> >
+    {
+        typedef t1 left_type;
+        typedef t2 right_type;
+
+        static const int sequencetype = 4;
+        static const bool is_captured = false;
+        template <typename iterator_t>
+        struct get_ast
+        {
+            typedef typename parser_ast<t2, iterator_t>::type type;
+        };
+
+        template <typename iterator_t>
+        static bool parse_internal(iterator_t& start, iterator_t& end)
+        {
+            return t1::parse_from(start, end) &&
+                t2::parse_from(start, end);
+        }
+
+        template <typename iterator_t>
+        static bool parse_internal(iterator_t& start, iterator_t& end, typename get_ast<iterator_t>::type& a)
+        {
+            return t1::parse_from(start, end) &&
+                t2::parse_from(start, end);
         }
     };
 
     // Matches the specified parser zero or more times.  The stream is checked 
     // for eof first, which is still considered a match.
     template <typename parser_t>
-    class zero_or_more : public parser< zero_or_more<parser_t> >,
-        public parser_traits<false>
+    struct zero_or_more : public parser< zero_or_more<parser_t> >
     {
-    public:
-        template <typename iterator_t>
-        struct ast
+        // Unless the parser is captured with a group, the zero_or_more 
+        // parser discards any underlying capture.
+        static const bool is_captured = false;
+
+        template <typename iterator_t, typename parser_ast_t>
+        struct create_ast
         {
-            typedef tree::repetition<parser_t, iterator_t> type;
+            typedef tree::repetition<parser_ast_t, iterator_t> type;
         };
 
         template <typename iterator_t>
-        static bool parse_internal(iterator_t& start, iterator_t& end, typename ast<iterator_t>::type& ast)
+        struct create_ast<iterator_t, void>
         {
-            typedef typename parser_t::template ast<iterator_t>::type ast_t;
+            typedef void type;
+        };
+
+        template <typename iterator_t>
+        struct get_ast
+        {
+            typedef typename create_ast<iterator_t, typename parser_ast<parser_t, iterator_t>::type>::type type;
+        };
+
+        template <typename iterator_t>
+        static bool parse_internal(iterator_t& start, iterator_t& end, typename get_ast<iterator_t>::type& ast)
+        {
+            typedef typename parser_ast<paser_t, iterator_t>::type ast_t;
 
             while (start != end)
             {
@@ -249,29 +478,52 @@ namespace parse
                 }
                 else
                 {
-                  ast.matches.push_back(partial);
+                    ast.matches.push_back(partial);
                 }
+            }
+            return true;
+        }
+
+        template <typename iterator_t>
+        static bool parse_internal(iterator_t& start, iterator_t& end)
+        {
+            while (start != end)
+            {
+                auto tmp = start;
+                if (start == end || !parser_t::parse_from(start, end) || start == tmp)
+                    break;
             }
             return true;
         }
     };
 
     template <typename parser_t, size_t min, size_t max = SIZE_MAX>
-    class repetition : public parser< repetition<parser_t, min, max> >,
-        public parser_traits<false>
+    struct repetition : public parser< repetition<parser_t, min, max> >
     {
-        friend class parser< repetition<parser_t, min, max> >;
+        // Unless the parser is captured with a group, the zero_or_more 
+        // parser discards any underlying capture.
+        static const bool is_captured = false;
 
-    public:
-        template <typename iterator_t>
-        struct ast
+        template <typename iterator_t, typename parser_ast_t>
+        struct create_ast
         {
-            typedef tree::repetition<parser_t, iterator_t> type;
+            typedef tree::repetition<parser_ast_t, iterator_t> type;
         };
 
-    protected:
         template <typename iterator_t>
-        static bool parse_internal(iterator_t& start, iterator_t& end, typename ast<iterator_t>::type& tree)
+        struct create_ast<iterator_t, void>
+        {
+            typedef void type;
+        };
+
+        template <typename iterator_t>
+        struct get_ast
+        {
+            typedef typename create_ast<iterator_t, typename parser_ast<parser_t, iterator_t>::type>::type type;
+        };
+
+        template <typename iterator_t>
+        static bool parse_internal(iterator_t& start, iterator_t& end, typename get_ast<iterator_t>::type& tree)
         {
             typedef typename parser_t::template ast<iterator_t>::type ast_t;
 
@@ -300,26 +552,50 @@ namespace parse
             }
             return true;
         }
+
+        template <typename iterator_t>
+        static bool parse_internal(iterator_t& start, iterator_t& end)
+        {
+            size_t i;
+            for (i = 0; i < min; i++)
+            {
+                if (!parser_t::parse_from(start, end))
+                    return false;
+            }
+
+            for (; i < max; i++)
+            {
+                if (start == end) break;
+                auto tmp = start;
+                if (!parser_t::parse_from(start, end) || tmp == start)
+                    break;
+            }
+            return true;
+        }
     };
 
     template <typename parser_t>
-    class optional : public parser< optional<parser_t> >,
-        public parser_traits<false>
+    struct optional : public parser< optional<parser_t> >
     {
-        friend class parser< optional<parser_t> >;
+        static const bool is_captured = parser_t::is_captured;
 
-    public:
         template <typename iterator_t>
-        struct ast
+        struct get_ast
         {
-            typedef tree::optional<parser_t, iterator_t> type;
+            typedef typename parser_ast<parser_t, iterator_t>::type type;
         };
 
-    protected:
         template <typename iterator_t>
-        static bool parse_internal(iterator_t& start, iterator_t& end, typename ast<iterator_t>::type& tree)
+        static bool parse_internal(iterator_t& start, iterator_t& end)
         {
-            if (start != end) parser_t::parse_from(start, end, tree.option);
+            if (start != end) parser_t::parse_from(start, end);
+            return true;
+        }
+
+        template <typename iterator_t>
+        static bool parse_internal(iterator_t& start, iterator_t& end, typename get_ast<iterator_t>::type& tree)
+        {
+            if (start != end) parser_t::parse_from(start, end, tree);
             return true;
         }
     };
@@ -330,11 +606,11 @@ namespace parse
     // token_t, can be any type with a parameterless constructor.  Also, the 
     // stream_t must return values that are assignable to token_t.
     template <typename derived_t, typename token_t>
-    class single : public parser< single<derived_t, token_t> >,
-        public parser_traits<true>
+    struct single : public parser< single<derived_t, token_t> >
     {
-    public:
         typedef token_t token_type;
+
+        static const bool is_single = true;
 
         template <typename iterator_t>
         static bool parse_internal(iterator_t& start, iterator_t& end)
@@ -342,24 +618,14 @@ namespace parse
             return start != end && derived_t::match(*start++);
         }
 
-        template <typename iterator_t>
-        static bool parse_internal(iterator_t& start, iterator_t& end, typename ast<iterator_t>::type& a)
-        {
-            return start != end && derived_t::match(*start++);
-        }
-
-        template <size_t i>
-        capture< single<derived_t, token_t>, i > operator[](const placeholders::index<i>& ph)
-        {
-            return capture< single<derived_t, token_t>, i >();
-        }
+        static bool match(token_t t) { return derived_t::match(t); }
     };
 
     // A parser that matches a single token that is anything other the what 
     // the parser_t type matches.  This cannot be used with variable-length 
     // (in tokens) parsers.
     template <typename parser_t, typename token_t>
-    class complement : public single< complement<parser_t, token_t>, token_t >
+    struct complement : public single< complement<parser_t, token_t>, token_t >
     {
     public:
         static bool match(char c)
@@ -371,7 +637,7 @@ namespace parse
     // A parser that matches a single token, in cases where the token_t type is 
     // integral (e.g., a char, wchar_t, etc., representing a character).
     template <typename token_t, token_t t>
-    class constant : public single< constant<token_t, t>, token_t >
+    struct constant : public single< constant<token_t, t>, token_t >
     {
     public:
         static bool match(token_t token)
@@ -380,76 +646,19 @@ namespace parse
         }
     };
 
-    /*
-    // Similar to constant, but the character is passed to the constructor at 
-    // runtime, instead of the template at compile-time.
-    template <typename token_t>
-    class character : public single< character<token_t>, token_t >
-    {
-    private:
-        token_t t;
-
-    public:
-        character(token_t token) : t(token)
-        {
-        }
-
-        bool match(token_t token)
-        {
-            return token == t;
-        }
-    };
-    */
-
-    // A zero-length parser that matches only at the end of the stream.
-    class end : public parser<end>
-    {
-    public:
-        template <typename iterator_t>
-        struct ast
-        {
-            typedef tree::ast_base<iterator_t> type;
-        };
-
-        template <typename iterator_t>
-        static bool parse_internal(iterator_t& s, iterator_t& end, typename ast<iterator_t>::type& tree)
-        {
-            return s.eof();
-        }
-    };
-
-    // A zero-length parser that matches only at the beginning of the stream.
-    class start : public parser<start>
-    {
-    public:
-        template <typename iterator_t>
-        struct ast
-        {
-            typedef tree::ast_base<iterator_t> type;
-        };
-
-        template <typename iterator_t>
-        static bool parser_internal(iterator_t& start, iterator_t& end, typename ast<iterator_t>::type& tree)
-        {
-            return s.pos() == 0;
-        }
-    };
-
     // This parser is used to make recursive parsers that refer to 
     // themselves, either directly or via some other sub-parser.
     template <typename parser_t>
-    class reference : public parser< reference<parser_t> >,
-        public parser_traits<false>
+    struct reference : public parser< reference<parser_t> >
     {
-    public:
         template <typename iterator_t>
-        struct ast
+        struct get_ast
         {
             typedef tree::reference<parser_t, iterator_t> type;
         };
 
         template <typename iterator_t>
-        static bool parse_internal(iterator_t& start, iterator_t& end, typename ast<iterator_t>::type& tree)
+        static bool parse_internal(iterator_t& start, iterator_t& end, typename get_ast<iterator_t>::type& tree)
         {
             typedef typename ast_type<parser_t, iterator_t>::type p_tree;
             tree.ptr.reset(new p_tree());
@@ -460,27 +669,36 @@ namespace parse
     // This parser matches only if the first_t parser matches and the 
     // second_t doesn't (from the same location).  This supports single
     // token parsing if both types are also single.
-    template <typename first_t, typename second_t>
+    template <typename t1, typename t2>
     struct difference 
-        : public parser< difference<first_t, second_t> >,
-        public parser_traits< first_t::is_single && second_t::is_single >
+        : public parser< difference<t1, t2> >
     {
-    public:
+        static const bool is_single = t1::is_single && t2::is_single;
+
         template <typename iterator_t>
-        struct ast
+        struct get_ast
         {
-            typedef typename first_t::template ast<iterator_t>::type type;
+            typedef typename t1::template get_ast<iterator_t>::type type;
         };
 
         template <typename iterator_t>
-        static bool parse_internal(iterator_t& start, iterator_t& end, typename ast<iterator_t>::type& tree)
+        static bool parse_internal(iterator_t& start, iterator_t& end, typename get_ast<iterator_t>::type& tree)
         {
             iterator_t tmp = start;
-            typename second_t::ast<iterator_t>::type second_tree;
+            typename t2::ast<iterator_t>::type second_tree;
             
             return 
-                first_t::parse_from(start, end, tree) && 
-                !second_t::parse_from(tmp, end, second_tree);
+                t1::parse_from(start, end, tree) && 
+                !t2::parse_from(tmp, end, second_tree);
+        }
+
+        template <typename iterator_t>
+        static bool parse_internal(iterator_t& start, iterator_t& end)
+        {
+            iterator_t tmp = start;
+            return 
+                t1::parse_from(start, end) && 
+                !t2::parse_from(tmp, end);
         }
 
         template <typename token_t>
@@ -555,17 +773,6 @@ namespace parse
         difference<first_t, second_t> operator- (const parser<first_t>& f, const parser<second_t>& s)
         {
             return difference<first_t, second_t>();
-        }
-
-        // This is obviously not a c++ operator, but is included here since 
-        // it is intended to be used in operator expressions.  The purpose of 
-        // this is to group expressions like "(a >> b) >> c", which have no
-        // difference from "a >> b >> c".  Using this function, "a >> b" can
-        // be grouped like this: "group(a >> b) >> c".
-        template <typename parser_t>
-        grouped<parser_t> group(const parser<parser_t>& p)
-        {
-            return grouped<parser_t>();
         }
     }
 

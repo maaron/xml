@@ -9,7 +9,7 @@ namespace xml
     using namespace util;
 
     template <typename unicode_iterator>
-    std::string get_string(parse::tree::ast_base<unicode_iterator>& ast)
+    std::string get_string(parse::tree::base<unicode_iterator>& ast)
     {
         std::string ret;
         utf8::utf32to8(ast.start, ast.end, std::back_inserter(ret));
@@ -92,86 +92,15 @@ namespace xml
 
         auto content_char = ~(lt | gt);
 
-        /*
-        typedef decltype((squote >> *(~squote) >> squote) | (dquote >> *(~dquote) >> dquote)) qstring_t;
-        struct qstring : qstring_t
-        {
-            template <typename iterator_t>
-            struct ast : qstring_t::ast<iterator_t>::type
-            {
-                typedef ast type;
+        typedef decltype((squote >> (*(~squote))[_0] >> squote) | (dquote >> (*(~dquote))[_1] >> dquote)) qstring;
 
-                std::string value()
-                {
-                    if ((*this)[_0].matched) return get_string((*this)[_0][_1]);
-                    else return get_string((*this)[_1][_1]);
-                }
-            };
-        };
-        */
-
-        struct qstring : parser<qstring>
-        {
-            template <typename iterator_t>
-            struct ast : parse::tree::ast_base<iterator_t>
-            {
-                typedef ast type;
-
-                std::string v;
-
-                std::string value()
-                {
-                    return v;
-                }
-            };
-
-            template <typename iterator_t>
-            bool parse_internal(iterator_t& it, iterator_t& end, ast<iterator_t>& a)
-            {
-                auto quote = *it++;
-                if (quote == '"')
-                {
-                    auto value_start = it;
-                    while (*it++ != '"' && it != end);
-                    a.v = get_string(value_start, it);
-                    return true;
-                }
-                else if (quote == '\'')
-                {
-                    auto value_start = it;
-                    while (*it++ != '\'' && it != end);
-                    a.v = get_string(value_start, it);
-                    return true;
-                }
-                else return false;
-            }
-        };
-
-        typedef decltype(ws >> group(name) >> eq >> qstring()) attribute_t;
-        struct attribute : attribute_t
-        {
-            template <typename iterator_t>
-            struct ast : attribute_t::ast<iterator_t>::type
-            {
-                typedef ast type;
-
-                typename qstring::ast<iterator_t>::type qstring()
-                {
-                    return (*this)[_3];
-                }
-
-                typename std::string key()
-                {
-                    return get_string((*this)[_1].group);
-                }
-            };
-        };
+        typedef decltype(ws >> name[_0] >> eq >> qstring()[_1]) attribute;
 
         typedef decltype(*attribute()) attribute_list;
 
-        typedef decltype(lt >> group(name) >> attribute_list() >> gt) element_open;
+        typedef decltype(lt >> name[_0] >> attribute_list()[_1] >> gt) element_open;
 
-        typedef decltype(lt >> fslash >> group(name) >> gt) element_close;
+        typedef decltype(lt >> fslash >> name >> gt) element_close;
 
         struct element;
 
@@ -181,11 +110,11 @@ namespace xml
 
         typedef decltype(lt >> bang >> dash >> dash >> *(~dash | (dash >> ~dash)) >> dash >> dash >> gt) comment;
 
-        typedef decltype(element_ref() | comment() | textnode()) childnode;
+        typedef decltype(element_ref()[_0] | comment() | textnode()[_1]) childnode;
 
         typedef decltype(*(childnode())) element_content;
 
-        typedef decltype(lt >> group(name) >> !attribute_list() >> !ws >> ((fslash >> gt) | (gt >> element_content() >> element_close()))) element_base;
+        typedef decltype(lt >> name[_0] >> !attribute_list()[_1] >> !ws >> ((fslash >> gt)[_2] | (gt >> element_content()[_3] >> element_close()))) element_base;
 
         struct element : public element_base {};
 
@@ -199,7 +128,7 @@ namespace xml
 
         typedef decltype(!xmldecl() >> *misc() >> !(doctypedecl() >> *misc())) prolog;
 
-        typedef decltype(group(prolog()) >> element()) document;
+        typedef decltype(prolog() >> element()[_0]) document;
     }
 }
 

@@ -20,8 +20,6 @@
 #include "tree.h"
 #include "reader.h"
 
-#include "parse\list2.h"
-
 // This demonstrates using a custom AST type to have more type-safe access to 
 // elements.  Instead of using the operator[] overloads directly, these AST 
 // classes add named accessor methods to retrieve the various parts of the 
@@ -200,40 +198,35 @@ long long time()
     return li.QuadPart;
 }
 
-#include "parse\parse2.h"
-
 template <typename t> struct map_f { typedef t* type; };
 
 int _tmain(int argc, _TCHAR* argv[])
 {
-#if 1
+#if 0
     /* Pruned AST test */
     {
         using namespace placeholders;
-        using namespace parse2;
-        using namespace parse2::operators;
+        using namespace parse;
+        using namespace parse::operators;
+        using namespace parse::terminals;
 
-        auto a = constant<'a'>();
-        auto b = constant<'b'>();
+        auto a = u<'a'>();
+        auto b = u<'b'>();
 
-        auto p = a[_0] >> b[_1];
+        auto p = (a | b) >> a[_0] >> b[_1] >> (a | b)[_3];
 
-        typedef decltype(a) a_type;
         typedef decltype(p) p_type;
 
-        bool cleft = std::identity<decltype(a[_0])>::type::is_captured;
-        int t = p_type::sequencetype;
-        bool captured = p_type::is_captured;
-        typedef parse2::parser_ast<p_type, std::string::iterator>::type ast_type;
+        typedef parse::parser_ast<p_type, std::string::iterator>::type ast_type;
         ast_type ast;
 
-        ast_type::get_value_type<0>::type v0;
-        ast_type::get_base_type<1>::right_base rb;
-        //ast_type::get_base_type<1>::left_base lb;
-        ast_type::get_value_type<1>::type v1;
-        
-        auto& a0 = ast[_0];
-        auto& a1 = ast[_1];
+        std::string data("baba");
+
+        bool valid = p.parse_from(data.begin(), data.end(), ast);
+
+        auto& m0 = ast[_0];
+        auto& m1 = ast[_1];
+        auto& m3 = ast[_3];
 
         std::cout << std::endl;
     }
@@ -305,17 +298,17 @@ int _tmain(int argc, _TCHAR* argv[])
     t1 = time();
     xml::tree::document doc(xml_data);
     t2 = time();
-    std::cout << "tree parse time: " << double(t2 - t1)/10000 << std::endl;
+    std::cout << "tree parse elapsed time: " << double(t2 - t1)/10000 << std::endl;
 #endif
 
     /* XML Reader Test */
-#if 0
+#if 1
     std::cout.setstate(std::ios_base::badbit);
     t1 = time();
     read_dump(xml_data);
     t2 = time();
     std::cout.clear();
-    std::cout << "reader parse time: " << t2 - t1 << std::endl;
+    std::cout << "reader parse time: " << double(t2 - t1)/10000 << std::endl;
 #endif
 
     /* XML Tree Test */
