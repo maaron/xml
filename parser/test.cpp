@@ -310,7 +310,9 @@ int _tmain(int argc, _TCHAR* argv[])
     {
         unicode::unicode_container<std::string> uc(xml_data);
         t1 = time();
-        for (auto i = uc.begin(); i != uc.end(); i++);
+        auto begin = uc.begin();
+        auto end = uc.end();
+        for (auto i = begin; i != end; i++);
         t2 = time();
         std::cout << "stream iterate time: " << double(t2 - t1)/10000 << std::endl;
 
