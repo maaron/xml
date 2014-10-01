@@ -118,9 +118,11 @@ namespace ast_tag_test
     using namespace parse::operators;
     using namespace parse::terminals;
 
+    auto one = u<'1'>();
     auto num = +digit();
     auto lparen = u<'('>();
     auto rparen = u<')'>();
+    auto ws = +space();
 
     struct s_expr;
 
@@ -129,6 +131,8 @@ namespace ast_tag_test
     typedef decltype(lparen >> *space() >> elem_t() >> *(+space() >> elem_t()) >> *space() >> rparen) s_expr_t;
 
     struct s_expr : s_expr_t {};
+
+    typedef decltype(one[_0] >> (*(space() >> one[_0]))[_1]) numlist;
 
     void test()
     {

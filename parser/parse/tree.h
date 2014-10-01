@@ -105,6 +105,17 @@ namespace parse
             }
         };
 
+        // This meta-function returns true if the supplied type is a branch 
+        // or a leaf.
+        template <typename t>
+        struct is_tree { static const bool value = false; };
+
+        template <typename t1, typename t2>
+        struct is_tree<branch<t1, t2> > { static const bool value = true; };
+
+        template <size_t i, typename t>
+        struct is_tree<leaf<i, t> > { static const bool value = true; };
+
         // This meta-function is used to determine whether two AST's have 
         // common indeces.
         template <typename branch1_t, typename branch2_t>

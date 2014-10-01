@@ -14,13 +14,20 @@ namespace parse
     template <typename parser_t>
     struct debug_tag { static const char* name() { return "unknown"; } };
 
-    template <typename parser_t, size_t i, typename impl = void>
-    struct capture_group;
+    template <typename parser_t, size_t i>
+    struct captured_parser;
 
     template <typename parser_t, typename iterator_t>
     struct parser_ast
     {
         typedef typename parser_t::template get_ast<iterator_t>::type type;
+    };
+
+    template <typename parser_t, typename iterator_t>
+    struct has_tree_ast
+    {
+        typedef typename parser_ast<parser_t, iterator_t>::type ast_type;
+        static const bool value = tree::is_tree<ast_type>::value;
     };
 
     template <typename derived_t>
@@ -34,6 +41,9 @@ namespace parse
         
         template <typename iterator_t>
         struct get_ast { typedef void type; };
+
+        template <size_t i>
+        struct capture { typedef captured_parser<derived_t, i> type; };
 
         // 3-parameter parse_from() only valid if the parser is captured.
         // it is set to the end of the match, which may be a partial if the
@@ -64,30 +74,32 @@ namespace parse
             else return true;
         }
 
+        template <size_t i>
+        struct get_captured_type { typedef typename derived_t::template capture<i>::type type; };
+
         // Operator overload for capturing parser result into an AST.
         template <size_t i>
-        capture_group<derived_t, i> operator[] (const placeholders::index<i>& ph)
+        typename get_captured_type<i>::type operator[] (const placeholders::index<i>& ph)
         {
-            return capture_group<derived_t, i>();
+            return typename get_captured_type<i>::type();
         }
     };
 
     template <typename parser_t, size_t i>
-    struct capture_group<parser_t, i, typename std::enable_if<parser_t::is_captured>::type>
-        : parser<capture_group<parser_t, i> >
+    struct captured_parser
+        : parser<captured_parser<parser_t, i> >
     {
-        static const int specialization = 1;
         static const size_t key = i;
         static const bool is_captured = true;
 
-        typedef parser<capture_group<parser_t, i> > base_type;
+        typedef parser<captured_parser<parser_t, i> > base_type;
         typedef parser_t parser_type;
 
         template <typename iterator_t>
         struct get_ast
         {
             typedef typename parser_ast<parser_t, iterator_t>::type parser_ast_type;
-            typedef typename tree::leaf<i, tree::base<iterator_t, parser_ast_type> > type;
+            typedef tree::leaf<i, tree::base<iterator_t, parser_ast_type> > type;
         };
 
         template <typename iterator_t>
@@ -97,41 +109,18 @@ namespace parse
         }
 
         template <typename iterator_t>
-        static bool parse_internal(iterator_t& start, iterator_t& end, typename get_ast<iterator_t>::type& a)
+        static typename std::enable_if<!std::is_void<typename parser_ast<parser_t, iterator_t>::type>::value, bool>::type
+            parse_internal(iterator_t& start, iterator_t& end, typename get_ast<iterator_t>::type& a)
         {
             a.value.start = a.value.end = start;
             a.value.matched = parser_t::parse_from(start, end, a.value);
             a.value.end = start;
             return a.value.matched;
         }
-    };
-
-    template <typename parser_t, size_t i>
-    struct capture_group<parser_t, i, typename std::enable_if<!parser_t::is_captured>::type>
-        : parser<capture_group<parser_t, i> >
-    {
-        static const int specialization = 2;
-        static const size_t key = i;
-        static const bool is_captured = true;
-
-        typedef parser<capture_group<parser_t, i> > base_type;
-        typedef parser_t parser_type;
 
         template <typename iterator_t>
-        struct get_ast
-        {
-            typedef typename parser_ast<parser_t, iterator_t>::type parser_ast_type;
-            typedef typename tree::leaf<i, tree::base<iterator_t, parser_ast_type> > type;
-        };
-
-        template <typename iterator_t>
-        static bool parse_internal(iterator_t& start, iterator_t& end)
-        {
-            return parser_t::parse_from(start, end);
-        }
-
-        template <typename iterator_t>
-        static bool parse_internal(iterator_t& start, iterator_t& end, typename get_ast<iterator_t>::type& a)
+        static typename std::enable_if<std::is_void<typename parser_ast<parser_t, iterator_t>::type>::value, bool>::type
+            parse_internal(iterator_t& start, iterator_t& end, typename get_ast<iterator_t>::type& a)
         {
             a.value.start = a.value.end = start;
             a.value.matched = parser_t::parse_from(start, end);
@@ -149,21 +138,61 @@ namespace parse
     template <typename parser_t>
     struct token_type<parser_t, true> { typedef typename parser_t::token_type type; };
 
+    // Creates an AST branch by joining the AST's from two parsers
+    template <typename t1, typename t2, typename iterator_t>
+    struct joined_ast
+    {
+        typedef typename tree::join<
+            typename parser_ast<t1, iterator_t>::type,
+            typename parser_ast<t2, iterator_t>::type
+        >::type type;
+    };
+
+    // Creates an AST branch given two types.  If they are both branches 
+    // (leaves or branches), returns a joined branch.  Otherwise, returns 
+    // one of the two arguments that is a branch (or leaf) or void if 
+    // neither is a branch.
+    template <typename t1, typename t2, typename iterator_t, typename enable = void>
+    struct make_branch_ast;
+
+    template <typename t1, typename t2, typename iterator_t>
+    struct make_branch_ast<t1, t2, iterator_t, typename std::enable_if<has_tree_ast<t1, iterator_t>::value && has_tree_ast<t2, iterator_t>::value>::type>
+    {
+        typedef typename joined_ast<t1, t2, iterator_t>::type type;
+    };
+
+    template <typename t1, typename t2, typename iterator_t>
+    struct make_branch_ast<t1, t2, iterator_t, typename std::enable_if<!has_tree_ast<t1, iterator_t>::value && has_tree_ast<t2, iterator_t>::value>::type>
+    {
+        typedef typename parser_ast<t2, iterator_t>::type type;
+    };
+
+    template <typename t1, typename t2, typename iterator_t>
+    struct make_branch_ast<t1, t2, iterator_t, typename std::enable_if<has_tree_ast<t1, iterator_t>::value && !has_tree_ast<t2, iterator_t>::value>::type>
+    {
+        typedef typename parser_ast<t1, iterator_t>::type type;
+    };
+
+    template <typename t1, typename t2, typename iterator_t>
+    struct make_branch_ast<t1, t2, iterator_t, typename std::enable_if<!has_tree_ast<t1, iterator_t>::value && !has_tree_ast<t2, iterator_t>::value>::type>
+    {
+        typedef void type;
+    };
+
     // A parser that matches if either of the two supplied parsers match.  The 
     // second parser won't be tried if the first matches.  This class supports
     // general parser alternates, and also has special support for single 
     // token alternates.
-    template <typename t1, typename t2, typename enable = void>
-    struct alternate { static_assert(always_false<enable>::value, "alternate specialization failed to compile"); };
+    //template <typename t1, typename t2, typename enable = void>
+    //struct alternate { static_assert(always_false<enable>::value, "alternate specialization failed to compile"); };
 
     template <typename t1, typename t2>
-    struct alternate<t1, t2, typename std::enable_if<t1::is_captured && t2::is_captured>::type >
+    struct alternate
         : parser<alternate<t1, t2> >
     {
         typedef t1 left_type;
         typedef t2 right_type;
 
-        static const bool is_captured = true;
         static const bool is_single = t1::is_single && t2::is_single;
 
         typedef typename token_type<t1, is_single>::type token_type;
@@ -171,9 +200,7 @@ namespace parse
         template <typename iterator_t>
         struct get_ast
         {
-            typedef typename parser_ast<t1, iterator_t>::type t1_ast_type;
-            typedef typename parser_ast<t2, iterator_t>::type t2_ast_type;
-            typedef typename tree::join<t1_ast_type, t2_ast_type>::type type;
+            typedef typename make_branch_ast<t1, t2, iterator_t>::type type;
         };
 
         template <typename iterator_t>
@@ -184,10 +211,24 @@ namespace parse
         }
 
         template <typename iterator_t>
-        static bool parse_internal(iterator_t& start, iterator_t& end, typename get_ast<iterator_t>::type& a)
+        static bool parse_internal(iterator_t& start, iterator_t& end, typename joined_ast<t1, t2, iterator_t>::type& a)
         {
             return t1::parse_from(start, end, a.left()) ||
                 t2::parse_from(start, end, a.right());
+        }
+
+        template <typename iterator_t>
+        static bool parse_internal(iterator_t& start, iterator_t& end, typename parser_ast<t1, iterator_t>::type& a)
+        {
+            return t1::parse_from(start, end, a) ||
+                t2::parse_from(start, end);
+        }
+
+        template <typename iterator_t>
+        static bool parse_internal(iterator_t& start, iterator_t& end, typename parser_ast<t2, iterator_t>::type& a)
+        {
+            return t1::parse_from(start, end) ||
+                t2::parse_from(start, end, a);
         }
 
         // This should only be called if both first and second are single 
@@ -199,14 +240,14 @@ namespace parse
         }
     };
 
+    /*
     template <typename t1, typename t2>
-    struct alternate<t1, t2, typename std::enable_if<t1::is_captured && !t2::is_captured>::type >
+    struct alternate<t1, t2, typename std::enable_if<has_tree_ast<t1>::value && !has_tree_ast<t2>::value>::type >
         : parser<alternate<t1, t2> >
     {
         typedef t1 left_type;
         typedef t2 right_type;
 
-        static const bool is_captured = true;
         static const bool is_single = t1::is_single && t2::is_single;
 
         typedef typename token_type<t1, is_single>::type token_type;
@@ -241,13 +282,12 @@ namespace parse
     };
 
     template <typename t1, typename t2>
-    struct alternate<t1, t2, typename std::enable_if<!t1::is_captured && t2::is_captured>::type >
+    struct alternate<t1, t2, typename std::enable_if<!has_tree_ast<t1>::value && has_tree_ast<t2>::value>::type >
         : parser<alternate<t1, t2> >
     {
         typedef t1 left_type;
         typedef t2 right_type;
 
-        static const bool is_captured = true;
         static const bool is_single = t1::is_single && t2::is_single;
 
         typedef typename token_type<t1, is_single>::type token_type;
@@ -282,32 +322,18 @@ namespace parse
     };
 
     template <typename t1, typename t2>
-    struct alternate<t1, t2, typename std::enable_if<!t1::is_captured && !t2::is_captured>::type >
+    struct alternate<t1, t2, typename std::enable_if<!has_tree_ast<t1>::value && !has_tree_ast<t2>::value>::type >
         : parser<alternate<t1, t2> >
     {
         typedef t1 left_type;
         typedef t2 right_type;
 
-        static const bool is_captured = false;
         static const bool is_single = t1::is_single && t2::is_single;
 
         typedef typename token_type<t1, is_single>::type token_type;
 
         template <typename iterator_t>
-        struct get_ast
-        {
-            typedef typename parser_ast<t2, iterator_t>::type type;
-        };
-
-        template <typename iterator_t>
         static bool parse_internal(iterator_t& start, iterator_t& end)
-        {
-            return t1::parse_from(start, end) ||
-                t2::parse_from(start, end);
-        }
-
-        template <typename iterator_t>
-        static bool parse_internal(iterator_t& start, iterator_t& end, typename get_ast<iterator_t>::type& a)
         {
             return t1::parse_from(start, end) ||
                 t2::parse_from(start, end);
@@ -321,29 +347,26 @@ namespace parse
             return t1::match(t) || t2::match(t);
         }
     };
+    */
 
     // A parser that matches only if both of the given parsers match in 
     // sequence.
-    template <typename t1, typename t2, typename enable = void>
-    struct sequence { static_assert(always_false<enable>::value, "sequence specialization failed to compile"); };
+    //template <typename t1, typename t2, typename enable = void>
+    //struct sequence { static_assert(always_false<enable>::value, "sequence specialization failed to compile"); };
 
     template <typename t1, typename t2>
-    struct sequence<t1, t2, typename std::enable_if<t1::is_captured && t2::is_captured>::type >
+    struct sequence
         : parser<sequence<t1, t2> >
     {
         typedef t1 left_type;
         typedef t2 right_type;
 
         static const int sequencetype = 1;
-        static const bool is_captured = true;
 
         template <typename iterator_t>
         struct get_ast
         {
-            typedef typename tree::join<
-                typename parser_ast<t1, iterator_t>::type,
-                typename parser_ast<t2, iterator_t>::type
-            >::type type;
+            typedef typename make_branch_ast<t1, t2, iterator_t>::type type;
         };
 
         template <typename iterator_t>
@@ -354,15 +377,31 @@ namespace parse
         }
 
         template <typename iterator_t>
-        static bool parse_internal(iterator_t& start, iterator_t& end, typename get_ast<iterator_t>::type& a)
+        static typename std::enable_if<has_tree_ast<t1, iterator_t>::value && has_tree_ast<t2, iterator_t>::value, bool>::type
+            parse_internal(iterator_t& start, iterator_t& end, typename joined_ast<t1, t2, iterator_t>::type& a)
         {
             return t1::parse_from(start, end, a.left()) &&
                 t2::parse_from(start, end, a.right());
         }
+
+        template <typename iterator_t>
+        static bool parse_internal(iterator_t& start, iterator_t& end, typename parser_ast<t1, iterator_t>::type& a)
+        {
+            return t1::parse_from(start, end, a) &&
+                t2::parse_from(start, end);
+        }
+
+        template <typename iterator_t>
+        static bool parse_internal(iterator_t& start, iterator_t& end, typename parser_ast<t2, iterator_t>::type& a)
+        {
+            return t1::parse_from(start, end) &&
+                t2::parse_from(start, end, a);
+        }
     };
 
+    /*
     template <typename t1, typename t2>
-    struct sequence<t1, t2, typename std::enable_if<t1::is_captured && !t2::is_captured>::type >
+    struct sequence<t1, t2, typename std::enable_if<has_tree_ast<t1>::value && !has_tree_ast<t2>::value>::type >
         : parser<sequence<t1, t2> >
     {
         typedef t1 left_type;
@@ -393,7 +432,7 @@ namespace parse
     };
 
     template <typename t1, typename t2>
-    struct sequence<t1, t2, typename std::enable_if<!t1::is_captured && t2::is_captured>::type >
+    struct sequence<t1, t2, typename std::enable_if<!has_tree_ast<t1>::value && has_tree_ast<t2>::value>::type >
         : parser<sequence<t1, t2> >
     {
         typedef t1 left_type;
@@ -424,7 +463,7 @@ namespace parse
     };
 
     template <typename t1, typename t2>
-    struct sequence<t1, t2, typename std::enable_if<!t1::is_captured && !t2::is_captured>::type >
+    struct sequence<t1, t2, typename std::enable_if<!has_tree_ast<t1>::value && !has_tree_ast<t2>::value>::type >
         : parser<sequence<t1, t2> >
     {
         typedef t1 left_type;
@@ -439,14 +478,8 @@ namespace parse
             return t1::parse_from(start, end) &&
                 t2::parse_from(start, end);
         }
-
-        template <typename iterator_t>
-        static bool parse_internal(iterator_t& start, iterator_t& end, typename get_ast<iterator_t>::type& a)
-        {
-            return t1::parse_from(start, end) &&
-                t2::parse_from(start, end);
-        }
     };
+    */
 
     // Matches the specified parser zero or more times.  The stream is checked 
     // for eof first, which is still considered a match.
@@ -478,12 +511,13 @@ namespace parse
         template <typename iterator_t>
         static bool parse_internal(iterator_t& start, iterator_t& end, typename get_ast<iterator_t>::type& ast)
         {
-            typedef typename parser_ast<paser_t, iterator_t>::type ast_t;
+            typedef typename parser_ast<parser_t, iterator_t>::type ast_t;
 
             while (start != end)
             {
                 ast_t partial;
-                if (!parser_t::parse_from(start, end, partial) || partial.start == partial.end)
+                auto tmp = start;
+                if (start == end || !parser_t::parse_from(start, end, partial) || start == tmp)
                 {
                     ast.partial = partial;
                     break;
@@ -666,9 +700,7 @@ namespace parse
         template <typename iterator_t>
         struct get_ast
         {
-            typedef typename std::conditional<parser_t::is_captured,
-                tree::reference<parser_t, iterator_t>, void
-            >::type type;
+            typedef typename tree::reference<parser_t, iterator_t> type;
         };
 
         template <typename iterator_t>
