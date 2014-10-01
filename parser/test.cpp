@@ -126,23 +126,23 @@ namespace ast_tag_test
 
     struct s_expr;
 
-    typedef decltype(num | reference<s_expr>()[_1]) elem_t;
+    typedef decltype(num[_0] | reference<s_expr>()[_1]) elem_t;
 
-    typedef decltype(lparen >> *space() >> elem_t() >> *(+space() >> elem_t()) >> *space() >> rparen) s_expr_t;
+    typedef decltype(lparen >> *space() >> elem_t()[_0] >> (*(+space() >> elem_t()))[_1] >> *space() >> rparen) s_expr_t;
 
     struct s_expr : s_expr_t {};
 
-    typedef decltype(one[_0] >> (*(space() >> one[_0]))[_1]) numlist;
+    typedef decltype(num[_0] >> ws >> s_expr()[_1]) parser;
 
     void test()
     {
-        s_expr::left_type::left_type::left_type::right_type::right_type::parser_type temp;
-        bool is = temp.is_captured;
-        
+        typedef std::string::iterator it_t;
         std::string data("((1) 2 3 (2 33 345) ((((1234)))))");
-        parse::parser_ast<s_expr, std::string::iterator>::type ast;
+        typedef parse::parser_ast<parser, std::string::iterator>::type ast_t;
+        ast_t ast;
+        typedef parser p_type;
 
-        bool valid = s_expr::parse_from(data.begin(), data.end(), ast);
+        bool valid = parser::parse_from(data.begin(), data.end(), ast);
     }
 }
 #endif
@@ -152,38 +152,48 @@ void read_dump(container_t& c)
 {
     xml::reader::document<container_t> doc(c);
     auto root = doc.root();
-    dump_element(root, "");
+    dump_element(root, 0);
 }
 
 template <typename iterator_t>
-void dump_element(xml::reader::element<iterator_t>& e, const std::string& indent)
+void dump_element(xml::reader::element<iterator_t>& e, int indent)
 {
-    std::cout << indent << "element: " << e.name() << std::endl;
-    std::cout << indent << "attributes: ";
+    //std::cout << indent << "element: " << e.name() << std::endl;
+    //std::cout << indent << "attributes: ";
 
     xml::reader::attribute<iterator_t> a = e.next_attribute();
-    if (a.is_end()) std::cout << "(none)" << std::endl;
+    if (a.is_end())
+    {
+        //std::cout << "(none)" << std::endl;
+    }
     else
     {
-        std::cout << std::endl;
+        //std::cout << std::endl;
 
         for (; !a.is_end(); a = a.next_attribute())
-            std::cout << indent << "  " << a.name() << "=" << a.value() << std::endl;
+        {
+            //std::cout << indent << "  " << a.name() << "=" << a.value() << std::endl;
+        }
     }
 
-    auto nextIndex = indent + "  ";
-    std::cout << indent << "childnodes: ";
+    auto nextIndent = indent + 2;
+    //std::cout << indent << "childnodes: ";
     xml::reader::node<iterator_t> child = a.next_child();
-    if (child.is_end()) std::cout << "(none)" << std::endl;
+    if (child.is_end())
+    {
+        //std::cout << "(none)" << std::endl;
+    }
     else
     {
-        std::cout << std::endl;
+        //std::cout << std::endl;
         for (; !child.is_end(); child = child.next_sibling())
         {
             if (child.is_text())
-                std::cout << nextIndex << "textnode: " << child.text() << std::endl;
+            {
+                //std::cout << nextIndex << "textnode: " << child.text() << std::endl;
+            }
             else
-                dump_element(child.element(), nextIndex);
+                dump_element(child.element(), nextIndent);
         }
     }
 }
@@ -295,16 +305,26 @@ int _tmain(int argc, _TCHAR* argv[])
     long long t1, t2;
 
     /* stream performance test */
-#if 0
-    unicode::unicode_container<std::string> uc(xml_data);
-    t1 = time();
-    for (auto i = uc.begin(); i != uc.end(); i++);
-    t2 = time();
-    std::cout << "stream iterate time: " << double(t2 - t1)/10000 << std::endl;
+#if 1
+    for (int i = 0; i < 2; i++)
+    {
+        unicode::unicode_container<std::string> uc(xml_data);
+        t1 = time();
+        for (auto i = uc.begin(); i != uc.end(); i++);
+        t2 = time();
+        std::cout << "stream iterate time: " << double(t2 - t1)/10000 << std::endl;
+
+        std::string copy;
+        copy.resize(xml_data.size());
+        t1 = time();
+        utf8::utf32to8(uc.begin(), uc.end(), std::back_inserter(copy));
+        t2 = time();
+        std::cout << "stream copy time: " << double(t2 - t1)/10000 << std::endl;
+    }
 #endif
 
     /* XML Tree Test */
-#if 0
+#if 1
     t1 = time();
     xml::tree::document doc(xml_data);
     t2 = time();
@@ -312,7 +332,7 @@ int _tmain(int argc, _TCHAR* argv[])
 #endif
 
     /* XML Reader Test */
-#if 0
+#if 1
     std::cout.setstate(std::ios_base::badbit);
     t1 = time();
     read_dump(xml_data);
@@ -321,7 +341,7 @@ int _tmain(int argc, _TCHAR* argv[])
     std::cout << "reader parse time: " << double(t2 - t1)/10000 << std::endl;
 #endif
 
-#if 0
+#if 1
     /* XML parse-only test */
     {
         t1 = time();
@@ -332,14 +352,21 @@ int _tmain(int argc, _TCHAR* argv[])
     }
 #endif
 
-#if 0
+#if 1
     {
         t1 = time();
         auto start = xml_data.begin();
         parse::parser_ast<xml::grammar::document, data_type::iterator>::type ast;
-        bool valid = xml::grammar::document::parse_from(start, xml_data.end());
+        bool valid = xml::grammar::document::parse_from(start, xml_data.end(), ast);
         t2 = time();
         std::cout << "parse-only with AST time: " << double(t2 - t1)/10000 << ", valid=" << std::boolalpha << valid << std::endl;
+        auto l = parse::tree::last_match(ast);
+        std::cout << "last match: " << (int)xml_data.begin()._Ptr << ", " << (int)l._Ptr << std::endl;
+
+        auto& root = ast[_0][_3].matches[23][_0].ptr->operator[](_3).matches[165][_0].ptr->operator[](_1).matches[0][_1][_1];
+        std::cout << "root element: " << xml::get_string(root) << std::endl;
+
+        auto& tmp = ast[_0][_1];
     }
 #endif
 

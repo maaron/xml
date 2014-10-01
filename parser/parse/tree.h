@@ -116,6 +116,24 @@ namespace parse
         template <size_t i, typename t>
         struct is_tree<leaf<i, t> > { static const bool value = true; };
 
+        // This meta-function returns a bool indicating whether the branch 
+        // contains a given key.
+        template <typename branch_t, size_t key>
+        struct contains_key;
+
+        template <typename left_t, typename right_t, size_t key>
+        struct contains_key<branch<left_t, right_t>, key>
+        {
+            static const bool value = 
+                contains_key<left_t, key>::value ||
+                contains_key<right_t, key>::value;
+        };
+        template <size_t i, typename value_t, size_t key>
+        struct contains_key<leaf<i, value_t>, key>
+        {
+            static const bool value = i == key;
+        };
+
         // This meta-function is used to determine whether two AST's have 
         // common indeces.
         template <typename branch1_t, typename branch2_t>
@@ -128,18 +146,12 @@ namespace parse
         template <size_t i, typename value_t, typename branch_t>
         struct is_unique<leaf<i, value_t>, branch_t>
         {
-            typedef leaf<i, value_t> leaf_t;
-            static const bool value =
-                is_unique<leaf_t, typename branch_t::left_type>::value &&
-                is_unique<leaf_t, typename branch_t::right_type>::value;
+            static const bool value = !contains_key<branch_t, i>::value;
         };
         template <typename branch_t, size_t i, typename value_t>
         struct is_unique<branch_t, leaf<i, value_t> >
         {
-            typedef leaf<i, value_t> leaf_t;
-            static const bool value =
-                is_unique<leaf_t, typename branch_t::left_type>::value &&
-                is_unique<leaf_t, typename branch_t::right_type>::value;
+            static const bool value = !contains_key<branch_t, i>::value;
         };
         template <size_t i1, typename value1_t, size_t i2, typename value2_t>
         struct is_unique<leaf<i1, value1_t>, leaf<i2, value2_t> >

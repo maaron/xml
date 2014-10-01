@@ -30,7 +30,7 @@ namespace xml
         enum node_type { text_node, element_node, invalid };
 
         // This class is used to represent children of element nodes, which 
-        // can themselves by either an element or a text node.  An instance of
+        // can themselves be either an element or a text node.  An instance of
         // this class may also represent the end of a node list.
         template <typename iterator_t>
         class node
@@ -51,7 +51,7 @@ namespace xml
             typedef xml::reader::element<iterator_t> element_type;
 
             node(iterator_t i, iterator_t e)
-                : it(i), end(e)
+                : it(i), end(e), text_or_tag(e, e)
             {
                 typedef decltype( (lt >> fslash >> name[_0] >> gt) | ((lt >> name[_1]) | comment() | textnode()[_2]) ) parser;
                 typedef typename parse::parser_ast<parser, iterator_t>::type ast;
@@ -202,7 +202,7 @@ namespace xml
             typedef attribute<iterator_t> attribute_type;
 
             attribute(iterator_t i, iterator_t e)
-                : it(i), end(e)
+                : it(i), end(e), _name(e, e), _value(e, e)
             {
                 typedef decltype( (!ws >> grammar::name[_0] >> eq >> qstring()[_1]) | (!ws >> !fslash[_2] >> gt) ) parser;
                 typedef typename parse::parser_ast<parser, iterator_t>::type ast;
