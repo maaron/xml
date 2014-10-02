@@ -53,9 +53,6 @@
     <ClInclude Include="parse\tree.h">
       <Filter>Header Files\parse</Filter>
     </ClInclude>
-    <ClInclude Include="parse\list.h">
-      <Filter>Header Files\parse</Filter>
-    </ClInclude>
     <ClInclude Include="unicode\unicode.h">
       <Filter>Header Files\unicode</Filter>
     </ClInclude>
@@ -63,6 +60,12 @@
       <Filter>Header Files\unicode</Filter>
     </ClInclude>
     <ClInclude Include="parse\parse.h">
+      <Filter>Header Files\parse</Filter>
+    </ClInclude>
+    <ClInclude Include="parse\placeholders.h">
+      <Filter>Header Files\parse</Filter>
+    </ClInclude>
+    <ClInclude Include="parse\list.h">
       <Filter>Header Files\parse</Filter>
     </ClInclude>
   </ItemGroup>
