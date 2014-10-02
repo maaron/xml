@@ -3,17 +3,56 @@
 #include <assert.h>
 #include <string>
 #include "parse\parse.h"
+#include <algorithm>
 
 namespace xml
 {
     using namespace util;
 
     template <typename unicode_iterator>
-    std::string get_string(parse::tree::ast_base<unicode_iterator>& ast)
+    class match_string
     {
-        std::string ret;
-        utf8::utf32to8(ast.start, ast.end, std::back_inserter(ret));
-        return ret;
+        unicode_iterator s, e;
+
+    public:
+        match_string() {}
+
+        match_string(unicode_iterator start, unicode_iterator end)
+            : s(start), e(end) {}
+
+        operator std::string() const
+        {
+            std::string ret;
+            utf8::utf32to8(s, e, std::back_inserter(ret));
+            return ret;
+        }
+
+        bool operator== (const std::string& rhs) const
+        {
+            auto b1 = s;
+            auto e1 = e;
+            auto b2 = rhs.begin();
+            auto e2 = rhs.end();
+            while (b1 != e1 && b2 != e2)
+            {
+                if (*b1++ != *b2++) return false;
+            }
+            return (b1 == e1 && b2 == e2)
+        }
+
+        bool operator!= (const std::string& rhs) const { return !(*this==rhs); }
+    };
+
+    template <typename iterator_t>
+    std::ostream& operator<< (std::ostream& lhs, const match_string<iterator_t>& rhs)
+    {
+        return lhs << std::string(rhs);
+    }
+
+    template <typename unicode_iterator>
+    match_string<unicode_iterator> get_string(parse::tree::base<unicode_iterator>& ast)
+    {
+        return match_string<unicode_iterator>(ast.start, ast.end);
     }
 
     class parse_exception : public std::exception
@@ -37,8 +76,8 @@ namespace xml
         parse_exception(iterator_t& next, iterator_t& end)
         {
             std::ostringstream mstr;
-            mstr << "line " << next.get_line() << ", column " << next.get_column() << ": ";
-            message += mstr.str();
+            //mstr << "line " << next.get_line() << ", column " << next.get_column() << ": ";
+            //message += mstr.str();
 
             std::string next_chars;
             size_t count = 0;
@@ -92,86 +131,15 @@ namespace xml
 
         auto content_char = ~(lt | gt);
 
-        /*
-        typedef decltype((squote >> *(~squote) >> squote) | (dquote >> *(~dquote) >> dquote)) qstring_t;
-        struct qstring : qstring_t
-        {
-            template <typename iterator_t>
-            struct ast : qstring_t::ast<iterator_t>::type
-            {
-                typedef ast type;
-
-                std::string value()
-                {
-                    if ((*this)[_0].matched) return get_string((*this)[_0][_1]);
-                    else return get_string((*this)[_1][_1]);
-                }
-            };
-        };
-        */
-
-        struct qstring : parser<qstring>
-        {
-            template <typename iterator_t>
-            struct ast : parse::tree::ast_base<iterator_t>
-            {
-                typedef ast type;
-
-                std::string v;
-
-                std::string value()
-                {
-                    return v;
-                }
-            };
-
-            template <typename iterator_t>
-            bool parse_internal(iterator_t& it, iterator_t& end, ast<iterator_t>& a)
-            {
-                auto quote = *it++;
-                if (quote == '"')
-                {
-                    auto value_start = it;
-                    while (*it++ != '"' && it != end);
-                    a.v = get_string(value_start, it);
-                    return true;
-                }
-                else if (quote == '\'')
-                {
-                    auto value_start = it;
-                    while (*it++ != '\'' && it != end);
-                    a.v = get_string(value_start, it);
-                    return true;
-                }
-                else return false;
-            }
-        };
-
-        typedef decltype(ws >> group(name) >> eq >> qstring()) attribute_t;
-        struct attribute : attribute_t
-        {
-            template <typename iterator_t>
-            struct ast : attribute_t::ast<iterator_t>::type
-            {
-                typedef ast type;
-
-                typename qstring::ast<iterator_t>::type qstring()
-                {
-                    return (*this)[_3];
-                }
-
-                typename std::string key()
-                {
-                    return get_string((*this)[_1].group);
-                }
-            };
-        };
+        typedef decltype((squote >> (*(~squote))[_0] >> squote) | (dquote >> (*(~dquote))[_1] >> dquote)) qstring;
+        
+        typedef decltype(ws >> name[_0] >> eq >> qstring()[_1]) attribute;
 
         typedef decltype(*attribute()) attribute_list;
 
-        typedef decltype(lt >> group(name) >> attribute_list() >> gt) element_open;
+        typedef decltype(lt >> name[_0] >> attribute_list()[_1] >> gt) element_open;
 
-        typedef decltype(lt >> fslash >> group(name) >> gt) element_close;
+        typedef decltype(lt >> fslash >> name >> gt) element_close;
 
         struct element;
 
@@ -181,11 +149,11 @@ namespace xml
 
         typedef decltype(lt >> bang >> dash >> dash >> *(~dash | (dash >> ~dash)) >> dash >> dash >> gt) comment;
 
-        typedef decltype(element_ref() | comment() | textnode()) childnode;
+        typedef decltype(element_ref()[_0] | comment() | textnode()[_1]) childnode;
 
         typedef decltype(*(childnode())) element_content;
 
-        typedef decltype(lt >> group(name) >> !attribute_list() >> !ws >> ((fslash >> gt) | (gt >> element_content() >> element_close()))) element_base;
+        typedef decltype(lt >> name[_0] >> !attribute_list()[_1] >> !ws >> ((fslash >> gt)[_2] | (gt >> element_content()[_3] >> element_close()))) element_base;
 
         struct element : public element_base {};
 
@@ -199,8 +167,15 @@ namespace xml
 
         typedef decltype(!xmldecl() >> *misc() >> !(doctypedecl() >> *misc())) prolog;
 
-        typedef decltype(group(prolog()) >> element()) document;
+        typedef decltype(prolog() >> element()[_0]) document;
     }
+
+    template <typename ast_t>
+    auto qstring_value(ast_t& ast) -> decltype(get_string(ast[_0]))
+    {
+        return ast[_0].matched ? get_string(ast[_0]) : get_string(ast[_1]);
+    }
+
 }
 
 template <> struct ::parse::debug_tag<xml::grammar::attribute_list> { static const char* name() { return "xml::attribute_list"; } };

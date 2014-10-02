@@ -44,6 +44,39 @@ namespace xml
             std::list<element> elements;
             std::list<std::string> textnodes;
 
+            template <typename ast_t>
+            void read(ast_t& ast)
+            {
+                attributes.clear();
+                elements.clear();
+                textnodes.clear();
+
+                name = get_string(ast[_0]);
+
+                auto& attlist_ast = ast[_1].matches;
+                for (auto attr = attlist_ast.begin(); attr != attlist_ast.end(); attr++)
+                {
+                    attributes[get_string((*attr)[_0])] = qstring_value((*attr)[_1]);
+                }
+
+                auto& childlist_ast = ast[_3].matches;
+                for (auto it = childlist_ast.begin(); it != childlist_ast.end(); it++)
+                {
+                    auto& child = *it;
+                    if (child[_0].matched)
+                    {
+                        elements.push_back(element());
+                        elements.back().read(*(child[_0].ptr));
+                        childnodes.push_back(node(&elements.back()));
+                    }
+                    else if (child[_1].matched)
+                    {
+                        textnodes.push_back(get_string(child[_1]));
+                        childnodes.push_back(node(&textnodes.back()));
+                    }
+                }
+            }
+
             template <typename iterator_t>
             void read(xml::reader::element<iterator_t>& e)
             {
@@ -98,14 +131,15 @@ namespace xml
             template <typename container_t>
             document(container_t& c)
             {
-                xml::reader::document<container_t> doc(c);
-                root.read(doc.root());
+                typedef typename unicode::unicode_container<container_t> unicode_container;
+	            typedef typename unicode_container::iterator iterator;
+            
+                unicode_container data(c);
+                parse::parser_ast<xml::grammar::document, iterator>::type ast;
+                
+                xml::grammar::document::parse_from(data.begin(), data.end(), ast);
+                root.read(ast[_0]);
             }
         };
-
-        template <typename iterator_t>
-        bool parse_element(element& e, iterator_t start, iterator_t end)
-        {
-        }
     }
 }

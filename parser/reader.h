@@ -6,32 +6,6 @@
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
 
-INT64 node_ctr_low = MAXINT64;
-INT64 node_ctr_high = MININT64;
-
-struct profile
-{
-    LARGE_INTEGER t1;
-    long long& low;
-    long long& high;
-
-    profile(long long& l, long long& h) : high(h), low(l)
-    {
-        QueryPerformanceCounter(&t1);
-    }
-
-    ~profile()
-    {
-        LARGE_INTEGER t2;
-        QueryPerformanceCounter(&t2);
-
-        auto t = t2.QuadPart - t1.QuadPart;
-
-        if (t < low) low = t;
-        if (t > high) high = t;
-    }
-};
-
 namespace xml
 {
     // This namespace contains classes that can be used to parse XML data in 
@@ -56,7 +30,7 @@ namespace xml
         enum node_type { text_node, element_node, invalid };
 
         // This class is used to represent children of element nodes, which 
-        // can themselves by either an element or a text node.  An instance of
+        // can themselves be either an element or a text node.  An instance of
         // this class may also represent the end of a node list.
         template <typename iterator_t>
         class node
@@ -70,56 +44,44 @@ namespace xml
 
         protected:
             iterator_t it, end;
-            std::string text_or_tag;
+            match_string<iterator_t> text_or_tag;
 
         public:
             typedef xml::reader::node<iterator_t> node_type;
             typedef xml::reader::element<iterator_t> element_type;
 
             node(iterator_t i, iterator_t e)
-                : it(i), end(e)
+                : it(i), end(e), text_or_tag(e, e)
             {
-                profile(node_ctr_low, node_ctr_high);
-
-                typedef decltype( group(lt >> fslash >> group(name) >> gt) | ((lt >> group(name)) | comment() | textnode()) ) parser;
-                typedef typename parse::ast_type<parser, iterator_t>::type ast;
-
-                parser p;
+                typedef decltype( (lt >> fslash >> name[_0] >> gt) | ((lt >> name[_1]) | comment() | textnode()[_2]) ) parser;
+                typedef typename parse::parser_ast<parser, iterator_t>::type ast;
 
                 while (true)
                 {
                     ast a;
 
-                    if (!p.parse_from(it, end, a))
-                        throw parse_exception(a, end);
+                    if (!parser::parse_from(it, end, a))
+                        throw parse_exception(it, end);
 
-                    if (a[_1].matched)
-                    {
-                        auto& child_node = a[_1];
-                        if (child_node[_0].matched)
-                        {
-                            parser_state = element_node;
-                            text_or_tag = get_string(child_node[_0][_1]);
-                            return;
-                        }
-                        else if (child_node[_1].matched)
-                        {
-                            continue;
-                        }
-                        else
-                        {
-                            assert(child_node[_2].matched);
-                            parser_state = text_node;
-                            text_or_tag = get_string(child_node[_2]);
-                            return;
-                        }
-                    }
-                    else // end tag found
+                    if (a[_0].matched)
                     {
                         assert(a[_0].matched);
                         parser_state = end_of_nodes;
                         return;
                     }
+                    else if (a[_1].matched)
+                    {
+                        parser_state = element_node;
+                        text_or_tag = get_string(a[_1]);
+                        return;
+                    }
+                    else if (a[_2].matched)
+                    {
+                        parser_state = text_node;
+                        text_or_tag = get_string(a[_2]);
+                        return;
+                    }
+                    // else must be a comment, so keep parsing
                 }
             }
 
@@ -152,7 +114,7 @@ namespace xml
 
             // Returns the content of a the current node.  Only valid if the 
             // current node is a text node (i.e., is_text() returns true).
-            std::string text()
+            match_string<iterator_t> text()
             {
                 assert(is_text());
                 return text_or_tag;
@@ -197,7 +159,7 @@ namespace xml
             }
 
             // Returns the tag name of the element.
-            std::string name()
+            match_string<iterator_t> name()
             {
                 return text_or_tag;
             }
@@ -230,8 +192,8 @@ namespace xml
         template <typename iterator_t>
         class attribute
         {
-            std::string _name;
-            std::string _value;
+            match_string<iterator_t> _name;
+            match_string<iterator_t> _value;
             iterator_t it, end;
             enum { attribute_node, end_of_attributes, end_of_element } parser_state;
 
@@ -240,33 +202,33 @@ namespace xml
             typedef attribute<iterator_t> attribute_type;
 
             attribute(iterator_t i, iterator_t e)
-                : it(i), end(e)
+                : it(i), end(e), _name(e, e), _value(e, e)
             {
-                typedef decltype( (!ws >> group(grammar::name) >> eq >> qstring()) | (!ws >> !fslash >> gt) ) attribute_parser;
-                typedef typename parse::ast_type<attribute_parser, iterator_t>::type attribute_ast;
+                typedef decltype( (!ws >> grammar::name[_0] >> eq >> qstring()[_1]) | (!ws >> !fslash[_2] >> gt) ) parser;
+                typedef typename parse::parser_ast<parser, iterator_t>::type ast;
 
-                attribute_parser p;
-                attribute_ast a;
+                ast a;
                 
-                if (!p.parse_from(it, end, a))
+                if (!parser::parse_from(it, end, a))
                     throw parse_exception(a, end);
                 
                 if (a[_0].matched)
                 {
-                    _name = get_string(a[_0][_1]);
-                    _value = a[_0][_3].value();
+                    _name = get_string(a[_0]);
+                    auto& qstr = a[_1];
+                    _value = qstring_value(qstr);
                     parser_state = attribute_node;
                 }
                 else
                 {
-                    parser_state = a[_1][_1].option.matched ?
+                    parser_state = a[_2].matched ?
                         end_of_element : end_of_attributes;
                 }
             }
 
             // Returns the name of the attribute, i.e., "name='value'".  Only 
             // valid if is_end() would return false.
-            std::string name()
+            match_string<iterator_t> name()
             {
                 assert(parser_state == attribute_node);
                 return _name;
@@ -274,7 +236,7 @@ namespace xml
             
             // Returns the value of the attribute, i.e., "name='value'".  Only 
             // valid if is_end() would return false.
-            std::string value()
+            match_string<iterator_t> value()
             {
                 assert(parser_state == attribute_node);
                 return _value;
@@ -357,11 +319,8 @@ namespace xml
             document(container_t& c)
                 : data(c), it(data.begin()), end(data.end())
             {
-                grammar::prolog p;
-                typename parse::ast_type<grammar::prolog, iterator_t>::type a;
-
-                if (!p.parse_from(it, end, a)) 
-                    throw parse_exception(a, end);
+                if (!grammar::prolog::parse_from(it, end)) 
+                    throw parse_exception(it, end);
             }
 
             // Returns the element object representing the root of the 

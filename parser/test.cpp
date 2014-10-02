@@ -31,7 +31,7 @@
 // A downside to this method is that we seem to get some strange errors in 
 // xlocnum.h, associated with bringing the parse::operators namespace in to 
 // scope alongside the accessors.
-
+#if 0
 namespace custom_ast_test
 {
     using namespace parse::terminals;
@@ -109,72 +109,91 @@ namespace custom_ast_test
         auto& c1c3 = c1.get_three();
     }
 }
+#endif
 
+#if 1
 namespace ast_tag_test
 {
     using namespace parse;
     using namespace parse::operators;
     using namespace parse::terminals;
 
+    auto one = u<'1'>();
     auto num = +digit();
     auto lparen = u<'('>();
     auto rparen = u<')'>();
+    auto ws = +space();
 
     struct s_expr;
 
-    typedef decltype(num | reference<s_expr>()) elem_t;
+    typedef decltype(num[_0] | reference<s_expr>()[_1]) elem_t;
 
-    typedef decltype(lparen >> *space() >> elem_t() >> *(+space() >> elem_t()) >> *space() >> rparen) s_expr_t;
+    typedef decltype(lparen >> *space() >> elem_t()[_0] >> (*(+space() >> elem_t()))[_1] >> *space() >> rparen) s_expr_t;
 
     struct s_expr : s_expr_t {};
 
+    typedef decltype(num[_0] >> ws >> s_expr()[_1]) parser;
+
     void test()
     {
-        s_expr p;
-        std::string data("(1 (2 33 345) ((((1234)))))");
-        auto ast = tree::make_ast(p, data);
+        typedef std::string::iterator it_t;
+        std::string data("((1) 2 3 (2 33 345) ((((1234)))))");
+        typedef parse::parser_ast<parser, std::string::iterator>::type ast_t;
+        ast_t ast;
+        typedef parser p_type;
 
-        bool valid = p.parse(data, ast);
+        bool valid = parser::parse_from(data.begin(), data.end(), ast);
     }
 }
+#endif
 
 template <typename container_t>
 void read_dump(container_t& c)
 {
     xml::reader::document<container_t> doc(c);
     auto root = doc.root();
-    dump_element(root, "");
+    dump_element(root, 0);
 }
 
 template <typename iterator_t>
-void dump_element(xml::reader::element<iterator_t>& e, const std::string& indent)
+void dump_element(xml::reader::element<iterator_t>& e, int indent)
 {
-    std::cout << indent << "element: " << e.name() << std::endl;
-    std::cout << indent << "attributes: ";
+    //std::cout << indent << "element: " << e.name() << std::endl;
+    //std::cout << indent << "attributes: ";
 
     xml::reader::attribute<iterator_t> a = e.next_attribute();
-    if (a.is_end()) std::cout << "(none)" << std::endl;
+    if (a.is_end())
+    {
+        //std::cout << "(none)" << std::endl;
+    }
     else
     {
-        std::cout << std::endl;
+        //std::cout << std::endl;
 
         for (; !a.is_end(); a = a.next_attribute())
-            std::cout << indent << "  " << a.name() << "=" << a.value() << std::endl;
+        {
+            //std::cout << indent << "  " << a.name() << "=" << a.value() << std::endl;
+        }
     }
 
-    auto nextIndex = indent + "  ";
-    std::cout << indent << "childnodes: ";
+    auto nextIndent = indent + 2;
+    //std::cout << indent << "childnodes: ";
     xml::reader::node<iterator_t> child = a.next_child();
-    if (child.is_end()) std::cout << "(none)" << std::endl;
+    if (child.is_end())
+    {
+        //std::cout << "(none)" << std::endl;
+    }
     else
     {
-        std::cout << std::endl;
+        //std::cout << std::endl;
         for (; !child.is_end(); child = child.next_sibling())
         {
             if (child.is_text())
-                std::cout << nextIndex << "textnode: " << child.text() << std::endl;
+            {
+                //std::cout << nextIndex << "textnode: " << child.text() << std::endl;
+            }
             else
-                dump_element(child.element(), nextIndex);
+                dump_element(child.element(), nextIndent);
         }
     }
 }
@@ -195,11 +214,43 @@ long long time()
     return li.QuadPart;
 }
 
+template <typename t> struct map_f { typedef t* type; };
+
 int _tmain(int argc, _TCHAR* argv[])
 {
     ast_tag_test::test();
 
-    /* Unicode tests
+#if 0
+    /* Pruned AST test */
+    {
+        using namespace placeholders;
+        using namespace parse;
+        using namespace parse::operators;
+        using namespace parse::terminals;
+
+        auto a = u<'a'>();
+        auto b = u<'b'>();
+
+        auto p = (a | b) >> a[_0] >> b[_1] >> (a | b)[_3];
+
+        typedef decltype(p) p_type;
+
+        typedef parse::parser_ast<p_type, std::string::iterator>::type ast_type;
+        ast_type ast;
+
+        std::string data("baba");
+
+        bool valid = p.parse_from(data.begin(), data.end(), ast);
+
+        auto& m0 = ast[_0];
+        auto& m1 = ast[_1];
+        auto& m3 = ast[_3];
+
+        std::cout << std::endl;
+    }
+#endif
+
+  /* Unicode tests
   //std::string v = "\xEF\xBB\xBFthis is a UTF8-encoded string with a BOM.";
   //std::string v = "this is a UTF8-encoded string without a BOM.";
   std::wstring wv(L"\uFEFFthis is a UTF16-encoded string with a BOM.");
@@ -249,15 +300,29 @@ int _tmain(int argc, _TCHAR* argv[])
     std::string xml_data(std::istreambuf_iterator<char>(ifs.rdbuf()), std::istreambuf_iterator<char>());
     //util::streambuf_container<std::streambuf> xml_data(ifs.rdbuf());
 
+    typedef decltype(xml_data) data_type;
+
     long long t1, t2;
 
     /* stream performance test */
-#if 0
-    unicode::unicode_container<std::string> uc(xml_data);
-    t1 = time();
-    for (auto i = uc.begin(); i != uc.end(); i++);
-    t2 = time();
-    std::cout << "stream iterate time: " << double(t2 - t1)/10000 << std::endl;
+#if 1
+    for (int i = 0; i < 2; i++)
+    {
+        unicode::unicode_container<std::string> uc(xml_data);
+        t1 = time();
+        auto begin = uc.begin();
+        auto end = uc.end();
+        for (auto i = begin; i != end; i++);
+        t2 = time();
+        std::cout << "stream iterate time: " << double(t2 - t1)/10000 << std::endl;
+
+        std::string copy;
+        copy.resize(xml_data.size());
+        t1 = time();
+        utf8::utf32to8(uc.begin(), uc.end(), std::back_inserter(copy));
+        t2 = time();
+        std::cout << "stream copy time: " << double(t2 - t1)/10000 << std::endl;
+    }
 #endif
 
     /* XML Tree Test */
@@ -265,17 +330,46 @@ int _tmain(int argc, _TCHAR* argv[])
     t1 = time();
     xml::tree::document doc(xml_data);
     t2 = time();
-    std::cout << "tree parse time: " << double(t2 - t1)/10000 << std::endl;
+    std::cout << "tree parse elapsed time: " << double(t2 - t1)/10000 << std::endl;
 #endif
 
     /* XML Reader Test */
-#if 0
+#if 1
     std::cout.setstate(std::ios_base::badbit);
     t1 = time();
     read_dump(xml_data);
     t2 = time();
     std::cout.clear();
-    std::cout << "reader parse time: " << t2 - t1 << std::endl;
+    std::cout << "reader parse time: " << double(t2 - t1)/10000 << std::endl;
+#endif
+
+#if 1
+    /* XML parse-only test */
+    {
+        t1 = time();
+        auto start = xml_data.begin();
+        bool valid = xml::grammar::document::parse_from(start, xml_data.end());
+        t2 = time();
+        std::cout << "parse-only time: " << double(t2 - t1)/10000 << ", valid=" << std::boolalpha << valid << std::endl;
+    }
+#endif
+
+#if 1
+    {
+        t1 = time();
+        auto start = xml_data.begin();
+        parse::parser_ast<xml::grammar::document, data_type::iterator>::type ast;
+        bool valid = xml::grammar::document::parse_from(start, xml_data.end(), ast);
+        t2 = time();
+        std::cout << "parse-only with AST time: " << double(t2 - t1)/10000 << ", valid=" << std::boolalpha << valid << std::endl;
+        auto l = parse::tree::last_match(ast);
+        std::cout << "last match: " << (int)xml_data.begin()._Ptr << ", " << (int)l._Ptr << std::endl;
+
+        auto& root = ast[_0][_3].matches[23][_0].ptr->operator[](_3).matches[165][_0].ptr->operator[](_1).matches[0][_1][_1];
+        std::cout << "root element: " << xml::get_string(root) << std::endl;
+
+        auto& tmp = ast[_0][_1];
+    }
 #endif
 
     /* XML Tree Test */

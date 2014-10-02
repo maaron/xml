@@ -1,69 +1,169 @@
 #pragma once
 
-namespace util
+#include "placeholders.h"
+
+namespace list
 {
+    // The element<...> class implements compile-time functionality similar 
+    // in nature to std::map<int, ...>, except that the type of each element 
+    // can be different.  A list is constructed as an ineheritance chain, 
+    // where the most derived class represents the front of the list, and the 
+    // base class represents the back.
+    template <size_t i, typename elem_t, typename next_t>
+    struct element : next_t
+    {
+        typedef elem_t head_type;
+        typedef element<i, elem_t, next_t> self_type;
+        typedef element<i, elem_t, void> self_removed_type;
+        typedef next_t tail_type;
 
-	template <size_t i>
-	struct index : std::integral_constant<size_t, i> {};
+        static const size_t key = i;
+        elem_t elem;
 
-	static index<0> _0;
-	static index<1> _1;
-	static index<2> _2;
-	static index<3> _3;
-	static index<4> _4;
-	static index<5> _5;
-	static index<6> _6;
-	static index<7> _7;
-	static index<8> _8;
-	static index<9> _9;
+        // Meta-function that returns whether or not the key is contained in 
+        // the list.
+        template <size_t i>
+        struct has_key
+        {
+            static const bool value = (i == key || next_t::template has_key<i>::value);
+        };
 
-	// Creates a two element list
-	template <template <typename, typename, typename> class derived_t, typename iterator_t, typename first_t, typename second_t>
-	struct list
-	{
-		first_t first;
-		second_t second;
+        // Meta-function that returns the element type identified by the specified key.
+        template <size_t i>
+        struct elem_type
+        {
+            typedef typename next_t::template elem_type<i>::type type;
+            static_assert(!std::is_same<type, void>::value, "Element index out of range");
+        };
+        template <> struct elem_type<key> { typedef elem_t type; };
 
-		static const size_t size = 2;
+        // Returns the element<...> class identified by the specified integer key.
+        template <size_t i>
+        struct base_type
+        {
+            typedef typename next_t::template base_type<i>::type type;
+            static_assert(!std::is_same<type, void>::value, "Element index out of range");
+        };
+        template <> struct base_type<key> { typedef self_type type; };
 
-		template <size_t i> struct elem;
-		template <> struct elem<0> { typedef first_t type; };
-		template <> struct elem<1> { typedef second_t type; };
+        // Returns a reference to the element identified by the index<i> 
+        // placeholder argument.
+        template <size_t i>
+        typename elem_type<i>::type& at(const placeholders::index<i>&)
+        {
+            return typename base_type<i>::type::elem;
+        }
+    };
 
-		first_t& operator[](const index<0>&) { return first; }
-		second_t& operator[](const index<1>&) { return second; }
-	};
+    // Specialization used for the back of a list.
+    template <size_t i, typename elem_t>
+    struct element<i, elem_t, void>
+    {
+        typedef element<i, elem_t, void> self_type;
+        typedef elem_t head_type;
 
-	// Creates an N+1-element list by appending second_t to the N-element list 
-	// list_t<t1, t2>.
-	template <template <typename, typename, typename> class derived_t, typename iterator_t, typename t1, typename t2, typename second_t>
-	struct list< derived_t, iterator_t, derived_t<iterator_t, t1, t2>, second_t >
-	{
-		typedef derived_t<iterator_t, t1, t2> first_t;
+        static const size_t key = i;
+        elem_t elem;
 
-		first_t first;
-		second_t second;
+        template <size_t i>
+        struct has_key
+        {
+            static const bool value = (i == key);
+        };
 
-		static const size_t size = first_t::size + 1;
+        template <size_t i>
+        struct elem_type
+        {
+            typedef typename std::conditional<
+                i == key, 
+                elem_t, 
+                void
+            >::type type;
+        };
 
-		template <size_t i>
-		struct elem
-		{
-			static_assert(i < size, "Element type index out of range");
-			typedef typename first_t::template elem<i>::type type;
-		};
+        template <size_t i>
+        struct base_type
+        {
+            typedef typename std::conditional<
+                i == key, 
+                self_type, 
+                void
+            >::type type;
+        };
 
-		template <>
-		struct elem<size - 1> { typedef second_t type; };
+        elem_t& at(const placeholders::index<key>&)
+        {
+            return elem;
+        }
+    };
 
-		second_t& operator[](const index<size - 1>&) { return second; }
+    // Meta-function that creates a 1-element list type
+    template <size_t i, typename elem_t>
+    struct make_list
+    {
+        typedef element<i, elem_t, void> type;
+    };
 
-		template <size_t i>
-		typename elem<i>::type& operator[](const index<i>& idx)
-		{
-			static_assert(i < size, "Element index out of range");
-			return first[idx];
-		}
-	};
+    // Meta-function that adds a new element with the given integer key to 
+    // the front of the list.
+    template <typename list_t, size_t i, typename elem_t>
+    struct push_front
+    {
+        typedef element<i, elem_t, list_t> type;
+    };
+
+    // Meta-function that adds a new element with the given integer key to 
+    // the back of the list.
+    template <typename list_t, size_t i, typename elem_t>
+    struct push_back
+    {
+        typedef typename push_back<typename list_t::tail_type, i, elem_t>::type tail;
+        typedef typename push_front<tail, list_t::key, typename list_t::head_type>::type type;
+    };
+    template <size_t i_end, typename elem_end_t, size_t i, typename elem_t>
+    struct push_back<element<i_end, elem_end_t, void>, i, elem_t>
+    {
+        typedef typename push_front<element<i, elem_t, void>, i_end, elem_end_t>::type type;
+    };
+
+    // Concatenates two lists together.  A static assertion is the indeces 
+    // for each list aren't unique.
+    template <typename list1_t, typename list2_t>
+    struct concat
+    {
+        static_assert(!list1_t::template has_key<list2_t::key>::value, "Element indeces not unique");
+        typedef typename push_back<list1_t, list2_t::key, typename list2_t::head_type>::type append1;
+        typedef typename concat<append1, typename list2_t::tail_type>::type type;
+    };
+    template <typename list1_t, size_t i, typename elem_t>
+    struct concat<list1_t, element<i, elem_t, void> >
+    {
+        static_assert(!list1_t::template has_key<i>::value, "List already contains an element with the specified index");
+        typedef typename push_back<list1_t, i, elem_t>::type type;
+    };
+
+    // Meta-function that returns a new list type with all the element types 
+    // modified using the specified meta-function.
+    template <typename list_t, template <typename> class type_function>
+    struct map
+    {
+        typedef typename type_function<typename list_t::head_type>::type first_mapped;
+        typedef typename map<typename list_t::tail_type, type_function>::type tail_mapped;
+        typedef typename push_front<tail_mapped, list_t::key, first_mapped>::type type;
+    };
+    template <size_t i, typename elem_t, template <typename> class type_function>
+    struct map< element<i, elem_t, void>, type_function >
+    {
+        typedef typename type_function<elem_t>::type mapped_type;
+        typedef typename make_list<i, mapped_type>::type type;
+    };
+
+    // Meta-function that returns true/false, indicating whether the 
+    // specified type is a list.
+    template <typename not_a_list_t>
+    struct is_list : std::false_type {};
+
+    template <typename size_t i, typename elem_t, typename next_t>
+    struct is_list< element<i, elem_t, next_t> > : std::true_type {};
 
 }
