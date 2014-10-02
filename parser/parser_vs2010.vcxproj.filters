@@ -56,9 +56,6 @@
     <ClInclude Include="unicode\unicode.h">
       <Filter>Header Files\unicode</Filter>
     </ClInclude>
-    <ClInclude Include="unicode\util.h">
-      <Filter>Header Files\unicode</Filter>
-    </ClInclude>
     <ClInclude Include="parse\parse.h">
       <Filter>Header Files\parse</Filter>
     </ClInclude>

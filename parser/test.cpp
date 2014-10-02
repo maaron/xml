@@ -365,7 +365,7 @@ int _tmain(int argc, _TCHAR* argv[])
         auto l = parse::tree::last_match(ast);
         std::cout << "last match: " << (int)xml_data.begin()._Ptr << ", " << (int)l._Ptr << std::endl;
 
-        auto& root = ast[_0][_3].matches[23][_0].ptr->operator[](_3).matches[165][_0].ptr->operator[](_1).matches[0][_1][_1];
+        auto& root = ast[_0][_3].matches[23][_0].get()[_3].matches[165][_0].get()[_1].matches[0][_1][_1];
         std::cout << "root element: " << xml::get_string(root) << std::endl;
 
         auto& tmp = ast[_0][_1];

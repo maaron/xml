@@ -66,7 +66,7 @@ namespace xml
                     if (child[_0].matched)
                     {
                         elements.push_back(element());
-                        elements.back().read(*(child[_0].ptr));
+                        elements.back().read(child[_0].get());
                         childnodes.push_back(node(&elements.back()));
                     }
                     else if (child[_1].matched)

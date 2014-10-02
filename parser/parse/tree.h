@@ -183,9 +183,22 @@ namespace parse
         };
 
         template <typename parser_t, typename iterator_t>
-        struct reference
+        class reference
         {
-            std::shared_ptr<typename parser_t::template get_ast<iterator_t>::type> ptr;
+            typedef typename parser_t::template get_ast<iterator_t>::type parser_ast_type;
+            
+            parser_ast_type* ptr;
+
+        public:
+            reference() : ptr(nullptr) {}
+
+            ~reference() { if (ptr != nullptr) delete ptr; }
+
+            parser_ast_type& get()
+            {
+                if (ptr == nullptr) ptr = new parser_ast_type();
+                return *ptr;
+            }            
         };
 
         // This function looks for a terminal that didn't match at a given 

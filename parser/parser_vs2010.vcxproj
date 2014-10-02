@@ -74,7 +74,6 @@
   <ItemGroup>
     <ClInclude Include="grammar.h" />
     <ClInclude Include="parse\list.h" />
-    <ClInclude Include="parse\list2.h" />
     <ClInclude Include="parse\parse.h" />
     <ClInclude Include="parse\placeholders.h" />
     <ClInclude Include="reader.h" />
@@ -84,7 +83,6 @@
     <ClInclude Include="parse\tree.h" />
     <ClInclude Include="tree.h" />
     <ClInclude Include="unicode\unicode.h" />
-    <ClInclude Include="unicode\util.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
