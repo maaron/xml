@@ -60,16 +60,7 @@
     <ClInclude Include="grammar.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="parse\list2.h">
-      <Filter>Header Files\parse</Filter>
-    </ClInclude>
-    <ClInclude Include="parse\parse2.h">
-      <Filter>Header Files\parse</Filter>
-    </ClInclude>
     <ClInclude Include="parse\placeholders.h">
-      <Filter>Header Files\parse</Filter>
-    </ClInclude>
-    <ClInclude Include="parse\tree2.h">
       <Filter>Header Files\parse</Filter>
     </ClInclude>
   </ItemGroup>

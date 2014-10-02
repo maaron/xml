@@ -25,11 +25,13 @@ namespace xml
         public:
             node(element* e)
             {
+                type = elementnode;
                 node_ptr.element = e;
             }
 
             node(std::string* s)
             {
+                type = textnode;
                 node_ptr.text = s;
             }
         };

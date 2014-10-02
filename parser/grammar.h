@@ -7,7 +7,6 @@
 
 namespace xml
 {
-    using namespace util;
 
     template <typename unicode_iterator>
     class match_string
@@ -15,8 +14,6 @@ namespace xml
         unicode_iterator s, e;
 
     public:
-        match_string() {}
-
         match_string(unicode_iterator start, unicode_iterator end)
             : s(start), e(end) {}
 

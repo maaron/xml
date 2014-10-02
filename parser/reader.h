@@ -14,9 +14,6 @@ namespace xml
     namespace reader
     {
         using namespace xml::grammar;
-        using namespace parse;
-        using namespace util;
-        using namespace parse::operators;
 
         template <typename container_t>
         class document;
@@ -38,7 +35,7 @@ namespace xml
             enum parser_state_type { element_node, text_node, end_of_nodes } parser_state;
 
             node(parser_state_type p, iterator_t it, iterator_t end)
-                : parser_state(p), it(it), end(end)
+                : parser_state(p), it(it), end(end), text_or_tag(end, end)
             {
             }
 
