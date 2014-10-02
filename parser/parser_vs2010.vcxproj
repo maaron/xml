@@ -83,6 +83,10 @@
     <ClInclude Include="parse\tree.h" />
     <ClInclude Include="tree.h" />
     <ClInclude Include="unicode\unicode.h" />
+    <ClInclude Include="unicode\utf8.h" />
+    <ClInclude Include="unicode\utf8\checked.h" />
+    <ClInclude Include="unicode\utf8\core.h" />
+    <ClInclude Include="unicode\utf8\unchecked.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

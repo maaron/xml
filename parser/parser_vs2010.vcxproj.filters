@@ -22,6 +22,9 @@
     <Filter Include="Header Files\unicode">
       <UniqueIdentifier>{86bd06eb-28d4-476e-b2ae-0676a425bcf2}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Header Files\unicode\utf8">
+      <UniqueIdentifier>{703f949b-5ea0-4f71-a13f-4d58b6a473ff}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">
@@ -64,6 +67,18 @@
     </ClInclude>
     <ClInclude Include="parse\list.h">
       <Filter>Header Files\parse</Filter>
+    </ClInclude>
+    <ClInclude Include="unicode\utf8.h">
+      <Filter>Header Files\unicode</Filter>
+    </ClInclude>
+    <ClInclude Include="unicode\utf8\checked.h">
+      <Filter>Header Files\unicode\utf8</Filter>
+    </ClInclude>
+    <ClInclude Include="unicode\utf8\core.h">
+      <Filter>Header Files\unicode\utf8</Filter>
+    </ClInclude>
+    <ClInclude Include="unicode\utf8\unchecked.h">
+      <Filter>Header Files\unicode\utf8</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

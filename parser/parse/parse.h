@@ -1,8 +1,5 @@
 #pragma once
 
-#include <vector>
-#include <string>
-#include <memory>
 #include "tree.h"
 #include "placeholders.h"
 
@@ -25,8 +22,8 @@ namespace parse
         typedef typename parser_t::template get_ast<iterator_t>::type type;
     };
 
-    // This meta-function returns true if the specified parser is a 
-    // tree::leaf or a tree::branch.  It is used in generating static AST 
+    // This meta-function returns true if the specified parser has a 
+    // tree::leaf or tree::branch AST.  It is used in generating static AST 
     // data structures using sequence and/or alternate expressions (i.e., 
     // ">>", "|" operators).
     template <typename parser_t, typename iterator_t>

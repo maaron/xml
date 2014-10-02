@@ -36,27 +36,34 @@ namespace xml
 
         class element
         {
-            std::list<node> childnodes;
+            std::string _name;
+            std::map<std::string, std::string> _attributes;
+            std::list<node> _childnodes;
+            std::list<element> _elements;
+            std::list<std::string> _textnodes;
 
         public:
-            std::string name;
-            std::map<std::string, std::string> attributes;
-            std::list<element> elements;
-            std::list<std::string> textnodes;
+            typedef std::map<std::string, std::string> attribute_list;
+            typedef std::list<element> element_list;
+
+            typedef std::list<node>::iterator node_iterator;
+            typedef std::list<element>::iterator element_iterator;
+            typedef std::list<std::string>::iterator textnode_iterator;
+            typedef std::map<std::string, std::string>::iterator attribute_iterator;
 
             template <typename ast_t>
             void read(ast_t& ast)
             {
-                attributes.clear();
-                elements.clear();
-                textnodes.clear();
+                _attributes.clear();
+                _elements.clear();
+                _textnodes.clear();
 
                 name = get_string(ast[_0]);
 
                 auto& attlist_ast = ast[_1].matches;
                 for (auto attr = attlist_ast.begin(); attr != attlist_ast.end(); attr++)
                 {
-                    attributes[get_string((*attr)[_0])] = qstring_value((*attr)[_1]);
+                    _attributes[get_string((*attr)[_0])] = qstring_value((*attr)[_1]);
                 }
 
                 auto& childlist_ast = ast[_3].matches;
@@ -65,14 +72,14 @@ namespace xml
                     auto& child = *it;
                     if (child[_0].matched)
                     {
-                        elements.push_back(element());
-                        elements.back().read(child[_0].get());
-                        childnodes.push_back(node(&elements.back()));
+                        _elements.push_back(element());
+                        _elements.back().read(child[_0].get());
+                        _childnodes.push_back(node(&elements.back()));
                     }
                     else if (child[_1].matched)
                     {
-                        textnodes.push_back(get_string(child[_1]));
-                        childnodes.push_back(node(&textnodes.back()));
+                        _textnodes.push_back(get_string(child[_1]));
+                        _childnodes.push_back(node(&textnodes.back()));
                     }
                 }
             }
@@ -80,17 +87,17 @@ namespace xml
             template <typename iterator_t>
             void read(xml::reader::element<iterator_t>& e)
             {
-                attributes.clear();
-                elements.clear();
-                textnodes.clear();
+                _attributes.clear();
+                _elements.clear();
+                _textnodes.clear();
 
-                name = e.name();
+                _name = e.name();
 
                 xml::reader::attribute<iterator_t> attr = e.next_attribute();
                 for (; !attr.is_end(); 
                     attr = attr.next_attribute())
                 {
-                    attributes[attr.name()] = attr.value();
+                    _attributes[attr.name()] = attr.value();
                 }
 
                 xml::reader::node<iterator_t> child = attr.next_child();
@@ -99,23 +106,34 @@ namespace xml
                 {
                     if (child.is_text())
                     {
-                        textnodes.push_back(child.text());
-                        childnodes.push_back(node(&textnodes.back()));
+                        _textnodes.push_back(child.text());
+                        _childnodes.push_back(node(&textnodes.back()));
                     }
                     else
                     {
                         assert(child.is_element());
-                        elements.push_back(element());
-                        elements.back().read(child.element());
-                        childnodes.push_back(node(&elements.back()));
+                        _elements.push_back(element());
+                        _elements.back().read(child.element());
+                        _childnodes.push_back(node(&elements.back()));
                     }
                 }
             }
 
+            // Returns the tag name of the element
+            std::string& name() { return _name; }
+
+            // Returns a string -> string map of attributes.
+            attribute_list& attributes() { return _attributes; }
+
+            // Returns a read-only list of child elements.
+            const element_list& elements() { return _elements; }
+
+            node_list& nodes() { return _childnodes.begin(); }
+
             std::string text()
             {
                 std::string s;
-                for (auto i = textnodes.begin(); i != textnodes.end(); i++)
+                for (auto i = _textnodes.begin(); i != _textnodes.end(); i++)
                 {
                     s += *i;
                 }
