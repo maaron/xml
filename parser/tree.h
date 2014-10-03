@@ -45,6 +45,7 @@ namespace xml
         public:
             typedef std::map<std::string, std::string> attribute_list;
             typedef std::list<element> element_list;
+            typedef std::list<node> node_list;
 
             typedef std::list<node>::iterator node_iterator;
             typedef std::list<element>::iterator element_iterator;
@@ -58,7 +59,7 @@ namespace xml
                 _elements.clear();
                 _textnodes.clear();
 
-                name = get_string(ast[_0]);
+                _name = get_string(ast[_0]);
 
                 auto& attlist_ast = ast[_1].matches;
                 for (auto attr = attlist_ast.begin(); attr != attlist_ast.end(); attr++)
@@ -74,12 +75,12 @@ namespace xml
                     {
                         _elements.push_back(element());
                         _elements.back().read(child[_0].get());
-                        _childnodes.push_back(node(&elements.back()));
+                        _childnodes.push_back(node(&_elements.back()));
                     }
                     else if (child[_1].matched)
                     {
                         _textnodes.push_back(get_string(child[_1]));
-                        _childnodes.push_back(node(&textnodes.back()));
+                        _childnodes.push_back(node(&_textnodes.back()));
                     }
                 }
             }
@@ -128,7 +129,7 @@ namespace xml
             // Returns a read-only list of child elements.
             const element_list& elements() { return _elements; }
 
-            node_list& nodes() { return _childnodes.begin(); }
+            node_list& nodes() { return _childnodes; }
 
             std::string text()
             {

@@ -53,8 +53,6 @@ namespace parse
         struct get_ast { typedef void type; };
 
         // 3-parameter parse_from() only valid if the parser is captured.
-        // it is set to the end of the match, which may be a partial if the
-        // function returns false.
         template <typename iterator_t, typename ast_t>
         static bool parse_from(iterator_t& it, iterator_t& end, ast_t& a)
         {

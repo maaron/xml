@@ -214,8 +214,6 @@ long long time()
     return li.QuadPart;
 }
 
-template <typename t> struct map_f { typedef t* type; };
-
 int _tmain(int argc, _TCHAR* argv[])
 {
     ast_tag_test::test();
